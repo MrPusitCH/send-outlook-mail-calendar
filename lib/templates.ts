@@ -16,24 +16,25 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
     body: `To: All concern member,
 
 I would like to invite you to join Device DR meeting as below.
-************************************************
-Date : {date}
-************************************************
-① . {topic}
-Device Group : {deviceGroup}
-Applicable Model : {applicableModel}
-DR (Stage) : {drStage}  
-Time : {time}
-Place : {place}
-Chairman : {chairman}
-Participant : {participant}
+
+========================================
+Date: {date}
+========================================
+
+1. {topic}
+Device Group: {deviceGroup}
+Applicable Model: {applicableModel}
+DR (Stage): {drStage}
+Time: {time}
+Place: {place}
+Chairman: {chairman}
+Participant: {participant}
 
 Thank you & Best regards
---------------------------------------------------------
+
 {organizerName}
 {organizerDivision}
-Tel : {organizerPhone}
---------------------------------------------------------`,
+Tel: {organizerPhone}`,
     isSystem: true
   },
   {

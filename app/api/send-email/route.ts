@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { sendEmailInputSchema, validateEmailDomain, getAllowedEmailDomainSuffix } from '@/lib/validators'
+import { sendEmailInputSchema, validateEmailDomain, getAllowedEmailDomainSuffix, cleanEmailListNoValidation } from '@/lib/validators'
 import { createCalendarEvent, generateCalendarInvite } from '@/lib/calendar'
 
 type NormalizedSendEmailInput = {
@@ -126,11 +126,12 @@ export async function POST(request: NextRequest) {
 
     const { to, cc, subject, body: emailBody, isHtml, calendarEvent } = validationResult.data
 
-    const invalidDomain = [...to, ...cc].find(email => !validateEmailDomain(email))
+    // Only validate TO recipients for domain restriction, CC can be any domain
+    const invalidDomain = to.find(email => !validateEmailDomain(email))
 
     if (invalidDomain) {
       const allowedDomain = getAllowedEmailDomainSuffix()
-      const errorMessage = `Email addresses must end with ${allowedDomain}`
+      const errorMessage = `Required recipients must end with ${allowedDomain}`
       logEmail(to, subject, 'FAILED', `${errorMessage}. Invalid: ${invalidDomain}`)
       return NextResponse.json(
         {
@@ -140,6 +141,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Clean CC emails without domain validation
+    const cleanCC = cleanEmailListNoValidation(cc)
 
     // Create transporter
     transporter = createTransporter()
@@ -164,7 +168,7 @@ export async function POST(request: NextRequest) {
     const mailOptions: nodemailer.SendMailOptions = {
       from: `${process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'} <${process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'}>`,
       to,
-      cc: cc.length ? cc : undefined,
+      cc: cleanCC.length ? cleanCC : undefined,
       subject,
       ...(isHtml ? { html: emailBody } : { text: emailBody }),
     }
@@ -188,7 +192,7 @@ export async function POST(request: NextRequest) {
         attendeeEmails: requiredAttendees.map((a: any) => a.email),
         attendeeNames: requiredAttendees.map((a: any) => a.name).filter(Boolean),
         // Use email CC recipients for calendar CC attendees
-        ccAttendeeEmails: cc.length > 0 ? cc : optionalAttendees.map((a: any) => a.email),
+        ccAttendeeEmails: cleanCC.length > 0 ? cleanCC : optionalAttendees.map((a: any) => a.email),
         ccAttendeeNames: optionalAttendees.map((a: any) => a.name).filter(Boolean),
         method: calendarEvent.method,
         status: calendarEvent.status,

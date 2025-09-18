@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer'
-import { SendEmailInput, cleanEmailList, CalendarEvent } from './validators'
+import { SendEmailInput, cleanEmailList, cleanEmailListNoValidation, CalendarEvent } from './validators'
 import { createCalendarEvent, generateCalendarInvite } from './calendar'
 
 /**
@@ -62,7 +62,7 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailResult> {
   try {
     // Clean and validate recipient lists
     const toList = cleanEmailList(input.to)
-    const ccList = cleanEmailList(input.cc || [])
+    const ccList = cleanEmailListNoValidation(input.cc || [])
 
     if (toList.length === 0) {
       return {

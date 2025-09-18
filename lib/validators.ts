@@ -148,3 +148,14 @@ export function cleanEmailList(emails: string[]): string[] {
     .filter(email => validateEmailDomain(email))
     .filter((email, index, array) => array.indexOf(email) === index) // Remove duplicates
 }
+
+/**
+ * Utility function to clean email list without domain validation (for CC)
+ */
+export function cleanEmailListNoValidation(emails: string[]): string[] {
+  return emails
+    .map(email => email.trim().toLowerCase())
+    .filter(email => email.length > 0)
+    .filter(email => email.includes('@')) // Basic email format check
+    .filter((email, index, array) => array.indexOf(email) === index) // Remove duplicates
+}

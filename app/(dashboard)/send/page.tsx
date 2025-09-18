@@ -413,7 +413,28 @@ export default function SendEmailPage() {
     
     setCalendarEvent({
       summary: 'Device DR Meeting - DC-K/I Altair comply WAF&RDS policies',
-      description: 'Device DR Meeting\n\nDevice Group: IoT\nApplicable Model: -\nDR (Stage): DC-K/I\nChairman: Mr. Nomura Yoshihide\nParticipant: R&D/DEDE, MKQ, DIT/IT and DIL/ITS',
+      description: `To: All concern member,
+
+I would like to invite you to join Device DR meeting as below.
+
+========================================
+Date: 23/Sep/'25 (Tue)
+========================================
+
+1. DC-K/I Altair comply WAF&RDS policies
+Device Group: IoT
+Applicable Model: -
+DR (Stage): DC-K/I
+Time: 15:00-16:00
+Place: R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting
+Chairman: Mr. Nomura Yoshihide
+Participant: R&D/DEDE, MKQ, DIT/IT and DIL/ITS
+
+Thank you & Best regards
+
+DEDE_SYSTEM
+R&D DIVISION / DEVICE GROUP
+Tel: 0-3846-9700 #7650`,
       location: 'R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting',
       start: startTime.toISOString(),
       end: endTime.toISOString(),
