@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { sendEmailInputSchema, validateEmailDomain, getAllowedEmailDomainSuffix, cleanEmailListNoValidation } from '@/lib/validators'
 import { createCalendarEvent, generateCalendarInvite } from '@/lib/calendar'
+import { generateMIMECalendarEmail, MIMEEmailParams } from '@/lib/mime-email-generator'
 
 type NormalizedSendEmailInput = {
   to: string[]
@@ -175,46 +176,47 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Separate attendees by role for proper calendar invite generation
-      const requiredAttendees = calendarEvent.attendees?.filter((a: any) => a.role === 'REQ-PARTICIPANT') || []
-      const optionalAttendees = calendarEvent.attendees?.filter((a: any) => a.role === 'OPT-PARTICIPANT') || []
+      // Generate MIME multipart email with calendar invite
+      const mimeParams: MIMEEmailParams = {
+        fromEmail: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
+        toEmails: to,
+        ccEmails: cleanCC,
+        subject: subject,
+        eventTitle: calendarEvent.summary || 'Meeting',
+        eventDescription: calendarEvent.description || '',
+        eventLocation: calendarEvent.location || '',
+        eventDate: calendarEvent.start ? new Date(calendarEvent.start).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        eventStartTime: calendarEvent.start || new Date().toISOString(),
+        eventEndTime: calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour later
+        timezone: calendarEvent.timezone || 'Asia/Bangkok',
+        organizerName: calendarEvent.organizer?.name || 'DEDE_SYSTEM',
+        organizerEmail: calendarEvent.organizer?.email || 'DEDE_SYSTEM@dit.daikin.co.jp',
+        attendeeNames: {},
+        ccAttendeeNames: {},
+        notes: calendarEvent.description ? 'Please review the meeting details below.' : undefined
+      }
 
-      const calendarEventObj = createCalendarEvent({
-        uid: calendarEvent.uid,
-        summary: calendarEvent.summary,
-        description: calendarEvent.description,
-        location: calendarEvent.location,
-        start: calendarEvent.start,
-        end: calendarEvent.end,
-        timezone: calendarEvent.timezone,
-        organizerName: calendarEvent.organizer?.name,
-        organizerEmail: calendarEvent.organizer?.email,
-        attendeeEmails: requiredAttendees.map((a: any) => a.email),
-        attendeeNames: requiredAttendees.map((a: any) => a.name).filter(Boolean),
-        // Use email CC recipients for calendar CC attendees
-        ccAttendeeEmails: cleanCC.length > 0 ? cleanCC : optionalAttendees.map((a: any) => a.email),
-        ccAttendeeNames: optionalAttendees.map((a: any) => a.name).filter(Boolean),
-        method: calendarEvent.method,
-        status: calendarEvent.status,
-        sequence: calendarEvent.sequence,
-      })
+      // Map attendee names from calendar event
+      if (calendarEvent.attendees) {
+        calendarEvent.attendees.forEach((attendee: any) => {
+          if (attendee.email && attendee.name) {
+            if (attendee.role === 'REQ-PARTICIPANT') {
+              mimeParams.attendeeNames[attendee.email] = attendee.name
+            } else if (attendee.role === 'OPT-PARTICIPANT') {
+              mimeParams.ccAttendeeNames[attendee.email] = attendee.name
+            }
+          }
+        })
+      }
 
-      const calendarInvite = generateCalendarInvite(calendarEventObj)
-
-      // Add calendar as attachment
-      mailOptions.attachments = [{
-        filename: calendarInvite.filename,
-        content: calendarInvite.content,
-        contentType: calendarInvite.contentType,
-        encoding: 'utf8'
-      }]
-
-      // Add calendar as alternative content type for better client support
-      mailOptions.alternatives = [{
-        content: calendarInvite.content,
-        contentType: calendarInvite.contentType,
-        encoding: 'utf8'
-      }]
+      // Generate complete MIME email
+      const mimeEmail = generateMIMECalendarEmail(mimeParams)
+      
+      // Use raw MIME email with nodemailer
+      mailOptions.raw = mimeEmail
+      // Clear other content types when using raw
+      delete mailOptions.html
+      delete mailOptions.text
     }
 
     const info = await transporter.sendMail(mailOptions)
