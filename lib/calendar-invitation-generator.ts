@@ -43,8 +43,8 @@ export function generateCalendarInvitationEmail(params: CalendarInvitationParams
 function generateMIMEHeaders(params: CalendarInvitationParams, boundary: string): string {
   const headers: string[] = []
   
-  // From header
-  headers.push(`From: ${params.fromEmail}`)
+  // From header with proper format
+  headers.push(`From: DEDE_SYSTEM <${params.fromEmail}>`)
   
   // To header
   headers.push(`To: ${params.toEmails.join(', ')}`)
@@ -78,9 +78,9 @@ function generateMIMEBody(htmlBody: string, icalContent: string, boundary: strin
   parts.push('')
   parts.push(htmlBody)
   
-  // iCalendar part
+  // iCalendar part - exact format as specified
   parts.push(`--${boundary}`)
-  parts.push('Content-Type: text/calendar; charset=UTF-8; method=REQUEST')
+  parts.push('Content-Type: text/calendar; method=REQUEST; charset=UTF-8')
   parts.push('Content-Transfer-Encoding: 8bit')
   parts.push('')
   parts.push(icalContent)
@@ -120,6 +120,7 @@ Tel : 0-3846-9700 #7650<br>
 
 /**
  * Generate iCalendar content with proper attendee roles and RSVP settings
+ * Following exact RFC5545 format requirements
  */
 function generateICalendarContent(params: CalendarInvitationParams): string {
   const lines: string[] = []
@@ -127,11 +128,11 @@ function generateICalendarContent(params: CalendarInvitationParams): string {
   // Generate UID if not provided
   const uid = params.uid || `${Date.now()}-${Math.random().toString(36).substring(2)}@${params.fromEmail}`
   
-  // Current timestamp for DTSTAMP
+  // Current timestamp for DTSTAMP (UTC format)
   const now = new Date()
   const dtStamp = now.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   
-  // Escape text for iCalendar
+  // Escape text for iCalendar (RFC5545)
   const escapeICalText = (text: string): string => {
     return text
       .replace(/\\/g, '\\\\')
@@ -141,28 +142,44 @@ function generateICalendarContent(params: CalendarInvitationParams): string {
       .replace(/\r/g, '')
   }
   
-  // Header
+  // Apply line folding for lines > 75 octets (RFC5545)
+  const foldLine = (line: string): string => {
+    if (line.length <= 75) return line
+    const folded: string[] = []
+    let remaining = line
+    while (remaining.length > 75) {
+      folded.push(remaining.substring(0, 75))
+      remaining = ' ' + remaining.substring(75) // Space + continuation
+    }
+    if (remaining.length > 0) {
+      folded.push(remaining)
+    }
+    return folded.join('\r\n')
+  }
+  
+  // Header - exact format as specified
   lines.push('BEGIN:VCALENDAR')
+  lines.push('PRODID:-//Custom SMTP Invite//EN')
   lines.push('VERSION:2.0')
-  lines.push('PRODID:-//DEDE_SYSTEM//Email Calendar//EN')
-  lines.push('CALSCALE:GREGORIAN')
   lines.push('METHOD:REQUEST')
   
   // Event
   lines.push('BEGIN:VEVENT')
   lines.push(`UID:${uid}`)
-  lines.push(`SUMMARY:${escapeICalText(params.subject)}`)
+  lines.push(`DTSTAMP:${dtStamp}`)
+  lines.push(`DTSTART:${params.dtStart}`)
+  lines.push(`DTEND:${params.dtEnd}`)
   
-  // Description with the announcement text
-  const description = `To: All concern member,\\n\\nI would like to invite you to join Device DR meeting as below.\\n\\n************************************************\\nDate : 23/Sep/'25 (Tue)\\n************************************************\\n① . DC-K/I  Altair comply WAF&RDS policies.\\nDevice Group : IoT\\nApplicable Model : -\\nDR (Stage) : DC-K/I\\nTime : 15:00-16:00\\nPlace : R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting.\\nChairman : Mr. Nomura Yoshihide\\nParticipant : R&D/DEDE, MKQ, DIT/IT and DIL/ITS\\n\\nThank you & Best regards\\n--------------------------------------------------------\\nThawatchai Thienariyawong\\nR&D DIVISION / DEVICE GROUP\\nTel : 0-3846-9700 #7650\\n--------------------------------------------------------`
-  lines.push(`DESCRIPTION:${description}`)
+  // Summary (calendar title) - keep concise
+  const summary = params.subject.length > 60 ? params.subject.substring(0, 57) + '...' : params.subject
+  lines.push(`SUMMARY:${escapeICalText(summary)}`)
   
   // Location
   lines.push('LOCATION:R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting')
   
-  // Date/time
-  lines.push(`DTSTART:${params.dtStart}`)
-  lines.push(`DTEND:${params.dtEnd}`)
+  // Description (plain text)
+  const description = `To: All concern member,\\n\\nI would like to invite you to join Device DR meeting as below.\\n\\n************************************************\\nDate : 23/Sep/'25 (Tue)\\n************************************************\\n① . DC-K/I  Altair comply WAF&RDS policies.\\nDevice Group : IoT\\nApplicable Model : -\\nDR (Stage) : DC-K/I\\nTime : 15:00-16:00\\nPlace : R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting.\\nChairman : Mr. Nomura Yoshihide\\nParticipant : R&D/DEDE, MKQ, DIT/IT and DIL/ITS\\n\\nThank you & Best regards\\n--------------------------------------------------------\\nThawatchai Thienariyawong\\nR&D DIVISION / DEVICE GROUP\\nTel : 0-3846-9700 #7650\\n--------------------------------------------------------`
+  lines.push(`DESCRIPTION:${escapeICalText(description)}`)
   
   // Organizer
   lines.push(`ORGANIZER;CN=DEDE_SYSTEM:mailto:${params.fromEmail}`)
@@ -170,21 +187,16 @@ function generateICalendarContent(params: CalendarInvitationParams): string {
   // Required participants (To) - ROLE=REQ-PARTICIPANT;RSVP=TRUE
   params.toEmails.forEach(email => {
     const name = params.attendeeNames[email] || email.split('@')[0]
-    lines.push(`ATTENDEE;CN=${escapeICalText(name)};ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:${email}`)
+    const attendeeLine = `ATTENDEE;CN=${escapeICalText(name)};ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:${email}`
+    lines.push(foldLine(attendeeLine))
   })
   
   // Optional participants (Cc) - ROLE=OPT-PARTICIPANT;RSVP=FALSE
   params.ccEmails.forEach(email => {
     const name = params.ccAttendeeNames[email] || email.split('@')[0]
-    lines.push(`ATTENDEE;CN=${escapeICalText(name)};ROLE=OPT-PARTICIPANT;RSVP=FALSE:mailto:${email}`)
+    const attendeeLine = `ATTENDEE;CN=${escapeICalText(name)};ROLE=OPT-PARTICIPANT;RSVP=FALSE:mailto:${email}`
+    lines.push(foldLine(attendeeLine))
   })
-  
-  // Status and timestamps
-  lines.push('STATUS:CONFIRMED')
-  lines.push('SEQUENCE:0')
-  lines.push(`DTSTAMP:${dtStamp}`)
-  lines.push(`CREATED:${dtStamp}`)
-  lines.push(`LAST-MODIFIED:${dtStamp}`)
   
   // End event
   lines.push('END:VEVENT')
@@ -212,6 +224,68 @@ export function generateExampleCalendarInvitation(): string {
     },
     dtStart: '20250923T080000Z', // 15:00-16:00 Asia/Bangkok = 08:00-09:00 UTC
     dtEnd: '20250923T090000Z'
+  }
+  
+  return generateCalendarInvitationEmail(params)
+}
+
+/**
+ * Generate the final MIME message string for SMTP transmission
+ * This function returns the complete MIME message ready for SMTP
+ */
+export function generateFinalMIMEMessage(): string {
+  const fromEmail = 'DEDE_SYSTEM@dit.daikin.co.jp'
+  const toEmails = ['john.doe@dit.daikin.co.jp', 'jane.smith@dit.daikin.co.jp']
+  const ccEmails = ['manager@dit.daikin.co.jp', 'observer@dit.daikin.co.jp']
+  const subject = 'Device DR Meeting - DC-K/I Altair comply WAF&RDS policies'
+  const attendeeNames = {
+    'john.doe@dit.daikin.co.jp': 'John Doe',
+    'jane.smith@dit.daikin.co.jp': 'Jane Smith'
+  }
+  const ccAttendeeNames = {
+    'manager@dit.daikin.co.jp': 'Manager Name',
+    'observer@dit.daikin.co.jp': 'Observer Name'
+  }
+  const dtStart = '20250923T080000Z' // 15:00-16:00 Asia/Bangkok = 08:00-09:00 UTC
+  const dtEnd = '20250923T090000Z'
+  
+  return generateSMTPCalendarInvite(
+    fromEmail,
+    toEmails,
+    ccEmails,
+    subject,
+    attendeeNames,
+    ccAttendeeNames,
+    dtStart,
+    dtEnd
+  )
+}
+
+/**
+ * Generate the final MIME message string for SMTP calendar invite
+ * Returns the complete MIME message ready for SMTP transmission
+ */
+export function generateSMTPCalendarInvite(
+  fromEmail: string,
+  toEmails: string[],
+  ccEmails: string[],
+  subject: string,
+  attendeeNames: { [email: string]: string },
+  ccAttendeeNames: { [email: string]: string },
+  dtStart: string, // UTC format: 20250923T080000Z
+  dtEnd: string,   // UTC format: 20250923T090000Z
+  uid?: string
+): string {
+  const params: CalendarInvitationParams = {
+    fromEmail,
+    toEmails,
+    ccEmails,
+    subject,
+    attendeeNames,
+    ccAttendeeNames,
+    dtStart,
+    dtEnd,
+    uid
   }
   
   return generateCalendarInvitationEmail(params)
