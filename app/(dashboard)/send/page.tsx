@@ -311,18 +311,23 @@ export default function SendEmailPage() {
 
   // Calendar event functions
   const initializeCalendarEvent = () => {
-    const now = new Date()
-    const endTime = new Date(now.getTime() + 60 * 60 * 1000) // 1 hour later
+    // Set default time to 15:00-16:00 (3:00 PM - 4:00 PM) as per template
+    const today = new Date()
+    const startTime = new Date(today)
+    startTime.setHours(15, 0, 0, 0) // 3:00 PM
+    
+    const endTime = new Date(today)
+    endTime.setHours(16, 0, 0, 0) // 4:00 PM
     
     setCalendarEvent({
-      summary: '',
-      description: '',
-      location: '',
-      start: now.toISOString(),
+      summary: 'Device DR Meeting - DC-K/I Altair comply WAF&RDS policies',
+      description: 'Device DR Meeting\n\nDevice Group: IoT\nApplicable Model: -\nDR (Stage): DC-K/I\nChairman: Mr. Nomura Yoshihide\nParticipant: R&D/DEDE, MKQ, DIT/IT and DIL/ITS',
+      location: 'R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting',
+      start: startTime.toISOString(),
       end: endTime.toISOString(),
       timezone: 'Asia/Bangkok',
       organizer: {
-        name: 'DEDE_SYSTEM',
+        name: 'Thawatchai Thienariyawong',
         email: 'DEDE_SYSTEM@dit.daikin.co.jp'
       },
       attendees: [
@@ -867,21 +872,51 @@ export default function SendEmailPage() {
                           />
                         </div>
 
+                        <div>
+                          <label className="block mb-2 text-sm font-medium">Date *</label>
+                          <Input
+                            type="date"
+                            value={calendarEvent.start ? new Date(calendarEvent.start).toISOString().slice(0, 10) : ''}
+                            onChange={(e) => {
+                              const selectedDate = new Date(e.target.value)
+                              const startTime = new Date(calendarEvent.start)
+                              const endTime = new Date(calendarEvent.end)
+                              
+                              // Keep the same time, just change the date
+                              startTime.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
+                              endTime.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
+                              
+                              updateCalendarEvent('start', startTime.toISOString())
+                              updateCalendarEvent('end', endTime.toISOString())
+                            }}
+                          />
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block mb-2 text-sm font-medium">Start Time *</label>
                             <Input
-                              type="datetime-local"
-                              value={calendarEvent.start ? new Date(calendarEvent.start).toISOString().slice(0, 16) : ''}
-                              onChange={(e) => updateCalendarEvent('start', new Date(e.target.value).toISOString())}
+                              type="time"
+                              value={calendarEvent.start ? new Date(calendarEvent.start).toTimeString().slice(0, 5) : ''}
+                              onChange={(e) => {
+                                const [hours, minutes] = e.target.value.split(':')
+                                const startDate = new Date(calendarEvent.start)
+                                startDate.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+                                updateCalendarEvent('start', startDate.toISOString())
+                              }}
                             />
                           </div>
                           <div>
                             <label className="block mb-2 text-sm font-medium">End Time *</label>
                             <Input
-                              type="datetime-local"
-                              value={calendarEvent.end ? new Date(calendarEvent.end).toISOString().slice(0, 16) : ''}
-                              onChange={(e) => updateCalendarEvent('end', new Date(e.target.value).toISOString())}
+                              type="time"
+                              value={calendarEvent.end ? new Date(calendarEvent.end).toTimeString().slice(0, 5) : ''}
+                              onChange={(e) => {
+                                const [hours, minutes] = e.target.value.split(':')
+                                const endDate = new Date(calendarEvent.end)
+                                endDate.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+                                updateCalendarEvent('end', endDate.toISOString())
+                              }}
                             />
                           </div>
                         </div>
