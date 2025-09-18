@@ -573,7 +573,7 @@ export default function SendEmailPage() {
                 Required participants: {formData.to.length} • Total recipients: {formData.to.length + (formData.cc?.length || 0)}
               </div>
               {formData.to.length > 0 && (
-                <div className="text-sm text-blue-600 font-medium">
+                <div className="text-sm font-medium text-blue-600">
                   Please respond.
                 </div>
               )}
