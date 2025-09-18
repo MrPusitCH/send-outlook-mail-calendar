@@ -463,30 +463,37 @@ export default function SendEmailPage() {
           <CardContent className="space-y-4">
             {/* Required Participants */}
             <div>
-              <label className="block mb-2 text-sm font-medium">Required Participants</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {formData.to.map((email) => (
-                  <Badge key={email} variant="secondary" className="flex items-center gap-1">
-                    {email}
-                    <button
-                      onClick={() => removeEmail(email, 'to')}
-                      className="ml-1 hover:text-destructive"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter email address"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addEmail(emailInput, 'to')}
-                />
-                <Button onClick={() => addEmail(emailInput, 'to')} size="sm">
-                  Add
-                </Button>
+              <label className="block mb-2 text-sm font-medium">Required</label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1 text-sm">
+                  {formData.to.map((email, index) => (
+                    <span key={email} className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                      <span className="text-gray-700">{email}</span>
+                      {index < formData.to.length - 1 && <span className="text-gray-400">;</span>}
+                      <button
+                        onClick={() => removeEmail(email, 'to')}
+                        className="ml-1 text-red-500 hover:text-red-700"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {formData.to.length === 0 && (
+                    <span className="text-gray-500 italic">No participants added yet</span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter email address"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addEmail(emailInput, 'to')}
+                  />
+                  <Button onClick={() => addEmail(emailInput, 'to')} size="sm">
+                    Add
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -578,8 +585,11 @@ export default function SendEmailPage() {
                 Required participants: {formData.to.length} • Total recipients: {formData.to.length + (formData.cc?.length || 0)}
               </div>
               {formData.to.length > 0 && (
-                <div className="text-sm font-medium text-blue-600">
-                  Please respond.
+                <div className="flex items-center gap-1 text-sm text-blue-600">
+                  <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
+                    <span className="text-xs text-blue-600">i</span>
+                  </div>
+                  <span>Please respond</span>
                 </div>
               )}
             </div>
