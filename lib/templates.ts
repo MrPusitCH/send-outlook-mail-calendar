@@ -131,7 +131,7 @@ export function getDeviceDRTemplateVariables(): Record<string, string> {
     place: 'R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting',
     chairman: 'Mr. Nomura Yoshihide',
     participant: 'R&D/DEDE, MKQ, DIT/IT and DIL/ITS',
-    organizerName: 'Thawatchai Thienariyawong',
+    organizerName: 'DEDE_SYSTEM',
     organizerDivision: 'R&D DIVISION / DEVICE GROUP',
     organizerPhone: '0-3846-9700 #7650'
   }

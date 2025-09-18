@@ -327,7 +327,7 @@ export default function SendEmailPage() {
       end: endTime.toISOString(),
       timezone: 'Asia/Bangkok',
       organizer: {
-        name: 'Thawatchai Thienariyawong',
+        name: 'DEDE_SYSTEM',
         email: 'DEDE_SYSTEM@dit.daikin.co.jp'
       },
       attendees: [
@@ -480,7 +480,7 @@ export default function SendEmailPage() {
                     </span>
                   ))}
                   {formData.to.length === 0 && (
-                    <span className="text-gray-500 italic">No participants added yet</span>
+                    <span className="italic text-gray-500">No participants added yet</span>
                   )}
                 </div>
                 <div className="flex gap-2">
@@ -586,7 +586,7 @@ export default function SendEmailPage() {
               </div>
               {formData.to.length > 0 && (
                 <div className="flex items-center gap-1 text-sm text-blue-600">
-                  <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
+                  <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded-full">
                     <span className="text-xs text-blue-600">i</span>
                   </div>
                   <span>Please respond</span>
