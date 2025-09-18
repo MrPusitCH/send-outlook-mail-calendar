@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import { SendEmailInput, cleanEmailList, cleanEmailListNoValidation, CalendarEvent } from './validators'
 import { createCalendarEvent, generateCalendarInvite } from './calendar'
-import { generateMIMECalendarEmail, MIMEEmailParams } from './mime-email-generator'
+import { generateCalendarInvitationEmail, CalendarInvitationParams } from './calendar-invitation-generator'
 
 /**
  * Email service configuration interface
@@ -93,24 +93,26 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailResult> {
 
     // Add calendar invite if provided
     if (input.calendarEvent) {
+      // Convert times to UTC format for iCalendar
+      const startTime = input.calendarEvent.start || new Date().toISOString()
+      const endTime = input.calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      
+      // Format times for iCalendar (UTC format)
+      const formatICalTime = (dateString: string): string => {
+        const date = new Date(dateString)
+        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      }
+      
       // Generate MIME multipart email with calendar invite
-      const mimeParams: MIMEEmailParams = {
+      const calendarParams: CalendarInvitationParams = {
         fromEmail: process.env.FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
         toEmails: toList,
         ccEmails: ccList,
         subject: input.subject,
-        eventTitle: input.calendarEvent.summary || 'Meeting',
-        eventDescription: input.calendarEvent.description || '',
-        eventLocation: input.calendarEvent.location || '',
-        eventDate: input.calendarEvent.start ? new Date(input.calendarEvent.start).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        eventStartTime: input.calendarEvent.start || new Date().toISOString(),
-        eventEndTime: input.calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        timezone: input.calendarEvent.timezone || 'Asia/Bangkok',
-        organizerName: input.calendarEvent.organizer?.name || 'DEDE_SYSTEM',
-        organizerEmail: input.calendarEvent.organizer?.email || 'DEDE_SYSTEM@dit.daikin.co.jp',
         attendeeNames: {},
         ccAttendeeNames: {},
-        notes: input.calendarEvent.description ? 'Please review the meeting details below.' : undefined
+        dtStart: formatICalTime(startTime),
+        dtEnd: formatICalTime(endTime)
       }
 
       // Map attendee names from calendar event
@@ -118,16 +120,16 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailResult> {
         input.calendarEvent.attendees.forEach((attendee: any) => {
           if (attendee.email && attendee.name) {
             if (attendee.role === 'REQ-PARTICIPANT') {
-              mimeParams.attendeeNames[attendee.email] = attendee.name
+              calendarParams.attendeeNames[attendee.email] = attendee.name
             } else if (attendee.role === 'OPT-PARTICIPANT') {
-              mimeParams.ccAttendeeNames[attendee.email] = attendee.name
+              calendarParams.ccAttendeeNames[attendee.email] = attendee.name
             }
           }
         })
       }
 
       // Generate complete MIME email
-      const mimeEmail = generateMIMECalendarEmail(mimeParams)
+      const mimeEmail = generateCalendarInvitationEmail(calendarParams)
       
       // Use raw MIME email with nodemailer
       mailOptions.raw = mimeEmail
