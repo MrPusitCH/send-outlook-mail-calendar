@@ -214,11 +214,24 @@ export async function POST(request: NextRequest) {
       // Generate complete MIME email
       const mimeEmail = generateCalendarInvitationEmail(calendarParams)
       
+      // Debug: Log MIME email details
+      console.log('=== Calendar Invite Debug ===')
+      console.log('Calendar event provided:', !!calendarEvent)
+      console.log('MIME email length:', mimeEmail.length, 'characters')
+      console.log('Contains iCalendar:', mimeEmail.includes('BEGIN:VCALENDAR'))
+      console.log('Contains METHOD:REQUEST:', mimeEmail.includes('METHOD:REQUEST'))
+      console.log('MIME preview:', mimeEmail.substring(0, 200) + '...')
+      
       // Use raw MIME email with nodemailer
-      mailOptions.raw = mimeEmail
+      // Convert to Buffer for proper MIME handling
+      mailOptions.raw = Buffer.from(mimeEmail, 'utf8')
       // Clear other content types when using raw
       delete mailOptions.html
       delete mailOptions.text
+      delete mailOptions.subject
+      delete mailOptions.to
+      delete mailOptions.cc
+      delete mailOptions.from
     }
 
     const info = await transporter.sendMail(mailOptions)
