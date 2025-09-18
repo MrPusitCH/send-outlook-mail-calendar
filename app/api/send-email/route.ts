@@ -225,13 +225,11 @@ export async function POST(request: NextRequest) {
       // Use raw MIME email with nodemailer
       // Convert to Buffer for proper MIME handling
       mailOptions.raw = Buffer.from(mimeEmail, 'utf8')
-      // Clear other content types when using raw
+      // Clear content types when using raw, but keep recipient info
       delete mailOptions.html
       delete mailOptions.text
-      delete mailOptions.subject
-      delete mailOptions.to
-      delete mailOptions.cc
-      delete mailOptions.from
+      // Keep to, cc, from, and subject for nodemailer validation
+      // The raw MIME will override the content but nodemailer needs these fields
     }
 
     const info = await transporter.sendMail(mailOptions)
