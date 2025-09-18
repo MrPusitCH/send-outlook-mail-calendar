@@ -456,9 +456,9 @@ export default function SendEmailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* To Recipients */}
+            {/* Required Participants */}
             <div>
-              <label className="block mb-2 text-sm font-medium">To</label>
+              <label className="block mb-2 text-sm font-medium">Required Participants</label>
               <div className="flex flex-wrap gap-2 mb-2">
                 {formData.to.map((email) => (
                   <Badge key={email} variant="secondary" className="flex items-center gap-1">
@@ -568,8 +568,15 @@ export default function SendEmailPage() {
               </Button>
             </div>
 
-            <div className="text-sm text-muted-foreground">
-              Total recipients: {formData.to.length + (formData.cc?.length || 0)}
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">
+                Required participants: {formData.to.length} • Total recipients: {formData.to.length + (formData.cc?.length || 0)}
+              </div>
+              {formData.to.length > 0 && (
+                <div className="text-sm text-blue-600 font-medium">
+                  Please respond.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
