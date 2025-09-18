@@ -237,10 +237,58 @@ export default function SendEmailPage() {
 
     setSending(true)
     try {
+      // Add calendar time table to email body if calendar event exists
+      let emailBody = formData.body
+      if (formData.calendarEvent) {
+        const timeTable = `
+<br><br>
+<div style="margin-top: 16px; padding: 12px; background-color: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px;">
+  <div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">📅 Calendar Event</div>
+  <div style="background-color: white; border: 1px solid #d1d5db; border-radius: 4px; padding: 8px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="flex: 1;">
+        <div style="font-size: 14px; font-weight: 500; color: #111827;">
+          ${formData.calendarEvent.summary || 'Untitled Event'}
+        </div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          DEDE_SYSTEM
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 12px; color: #6b7280;">
+          ${new Date(formData.calendarEvent.start).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })} - ${new Date(formData.calendarEvent.end).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })}
+        </div>
+        <div style="font-size: 12px; color: #9ca3af;">
+          ${new Date(formData.calendarEvent.start).toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+          })}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`
+        emailBody += timeTable
+      }
+
+      const emailData = {
+        ...formData,
+        body: emailBody
+      }
+
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(emailData)
       })
 
       const result = await response.json()
@@ -269,13 +317,57 @@ export default function SendEmailPage() {
 
     setSending(true)
     try {
+      // Add calendar time table to email body if calendar event exists
+      let emailBody = formData.body
+      if (formData.calendarEvent) {
+        const timeTable = `
+<br><br>
+<div style="margin-top: 16px; padding: 12px; background-color: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px;">
+  <div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">📅 Calendar Event</div>
+  <div style="background-color: white; border: 1px solid #d1d5db; border-radius: 4px; padding: 8px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="flex: 1;">
+        <div style="font-size: 14px; font-weight: 500; color: #111827;">
+          ${formData.calendarEvent.summary || 'Untitled Event'}
+        </div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          DEDE_SYSTEM
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 12px; color: #6b7280;">
+          ${new Date(formData.calendarEvent.start).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })} - ${new Date(formData.calendarEvent.end).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })}
+        </div>
+        <div style="font-size: 12px; color: #9ca3af;">
+          ${new Date(formData.calendarEvent.start).toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+          })}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`
+        emailBody += timeTable
+      }
+
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           to: [testEmail],
-          subject: `[TEST] ${formData.subject}`
+          subject: `[TEST] ${formData.subject}`,
+          body: emailBody
         })
       })
 
@@ -836,6 +928,45 @@ export default function SendEmailPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Calendar Time Table */}
+                    {formData.calendarEvent && (
+                      <div className="p-3 mt-4 border border-blue-200 rounded-lg bg-blue-50">
+                        <div className="mb-2 text-sm font-medium text-blue-900">Calendar Event</div>
+                        <div className="p-3 bg-white border border-gray-300 rounded">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-gray-900">
+                                {formData.calendarEvent.summary || 'Untitled Event'}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-600">
+                                DEDE_SYSTEM
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-gray-600">
+                                {new Date(formData.calendarEvent.start).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })} - {new Date(formData.calendarEvent.end).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {new Date(formData.calendarEvent.start).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1041,6 +1172,44 @@ export default function SendEmailPage() {
               {previewMode ? (
                 <div className="min-h-[200px] p-3 border rounded-md bg-muted/50">
                   <div dangerouslySetInnerHTML={{ __html: formData.body }} />
+                  {/* Calendar Time Table in Email Preview */}
+                  {formData.calendarEvent && (
+                    <div className="p-3 mt-4 border border-blue-200 rounded bg-blue-50">
+                      <div className="mb-2 text-sm font-medium text-blue-900">📅 Calendar Event</div>
+                      <div className="p-2 bg-white border border-gray-300 rounded">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formData.calendarEvent.summary || 'Untitled Event'}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              DEDE_SYSTEM
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-600">
+                              {new Date(formData.calendarEvent.start).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
+                              })} - {new Date(formData.calendarEvent.end).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(formData.calendarEvent.start).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <Textarea
