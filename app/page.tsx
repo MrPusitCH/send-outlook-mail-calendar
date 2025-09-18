@@ -1,26 +1,26 @@
 import Link from 'next/link'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Mail, Users, FileText, Settings } from 'lucide-react'
+import { Mail, Users, FileText, Settings, Calendar, Zap } from 'lucide-react'
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+      <div className="container px-4 py-16 mx-auto">
+        <div className="mb-12 text-center">
+          <h1 className="mb-4 text-4xl font-bold text-gray-900">
             Internal Email Sender
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="max-w-2xl mx-auto text-xl text-gray-600">
             Send emails to internal recipients through our secure on-premises SMTP server.
             Built for DEDE_SYSTEM with modern technology stack.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="grid gap-6 mb-12 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="text-center">
-              <Mail className="h-12 w-12 mx-auto text-blue-600 mb-4" />
+              <Mail className="w-12 h-12 mx-auto mb-4 text-blue-600" />
               <CardTitle>Send Emails</CardTitle>
               <CardDescription>
                 Compose and send emails to internal recipients
@@ -37,37 +37,42 @@ export default function HomePage() {
 
           <Card>
             <CardHeader className="text-center">
-              <Users className="h-12 w-12 mx-auto text-green-600 mb-4" />
-              <CardTitle>Manage Recipients</CardTitle>
+              <Calendar className="w-12 h-12 mx-auto mb-4 text-green-600" />
+              <CardTitle>Device DR Meeting</CardTitle>
               <CardDescription>
-                Add recipients by individual email or department groups
+                Quick template for Device DR meeting invitations
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full" disabled>
-                Coming Soon
-              </Button>
+              <Link href="/send?template=device-dr-meeting">
+                <Button className="w-full">
+                  <Zap className="w-4 h-4 mr-2" />
+                  Quick Start
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="text-center">
-              <FileText className="h-12 w-12 mx-auto text-purple-600 mb-4" />
+              <FileText className="w-12 h-12 mx-auto mb-4 text-purple-600" />
               <CardTitle>Templates</CardTitle>
               <CardDescription>
-                Create and manage email templates for common communications
+                Pre-built templates for common communications
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full" disabled>
-                Coming Soon
-              </Button>
+              <Link href="/send">
+                <Button variant="outline" className="w-full">
+                  View Templates
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="text-center">
-              <Settings className="h-12 w-12 mx-auto text-orange-600 mb-4" />
+              <Settings className="w-12 h-12 mx-auto mb-4 text-orange-600" />
               <CardTitle>Settings</CardTitle>
               <CardDescription>
                 Configure email settings and system preferences
@@ -81,13 +86,13 @@ export default function HomePage() {
           </Card>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+        <div className="p-8 bg-white rounded-lg shadow-lg">
+          <h2 className="mb-6 text-2xl font-bold text-center text-gray-900">
             Features
           </h2>
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid gap-8 md:grid-cols-2">
             <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Email Management</h3>
+              <h3 className="mb-4 text-lg font-semibold text-gray-800">Email Management</h3>
               <ul className="space-y-2 text-gray-600">
                 <li>• Send emails to internal recipients only</li>
                 <li>• Add recipients individually or by groups</li>
@@ -97,7 +102,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Security & Compliance</h3>
+              <h3 className="mb-4 text-lg font-semibold text-gray-800">Security & Compliance</h3>
               <ul className="space-y-2 text-gray-600">
                 <li>• Domain validation for recipients</li>
                 <li>• On-premises SMTP server integration</li>
@@ -109,15 +114,15 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="text-center mt-12 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="mt-12 space-y-4 text-center">
+          <div className="flex flex-col justify-center gap-4 sm:flex-row">
             <Link href="/send">
-              <Button size="lg" className="text-lg px-8 py-3">
+              <Button size="lg" className="px-8 py-3 text-lg">
                 Get Started - Send Your First Email
               </Button>
             </Link>
             <Link href="/components-demo">
-              <Button variant="outline" size="lg" className="text-lg px-8 py-3">
+              <Button variant="outline" size="lg" className="px-8 py-3 text-lg">
                 View UI Components Demo
               </Button>
             </Link>

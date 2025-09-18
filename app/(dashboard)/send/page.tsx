@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui
 import { Send, Users, Mail, FileText, Save, Copy, TestTube, Plus, X, Search, Calendar, Clock, MapPin, User } from 'lucide-react'
 import { SendEmailInput, CalendarEvent, CalendarAttendee } from '../../../lib/validators'
 import { COMMON_TIMEZONES, createUpdatedCalendarEvent, createCancelledCalendarEvent } from '../../../lib/calendar'
+import { SYSTEM_TEMPLATES, getTemplateById, formatTemplate, getDeviceDRTemplateVariables } from '../../../lib/templates'
 
 interface Employee {
   id: string
@@ -70,7 +71,37 @@ export default function SendEmailPage() {
     loadGroups()
     loadTemplates()
     loadDraft()
+    loadTemplateFromURL()
   }, [])
+
+  // Load template from URL parameter
+  const loadTemplateFromURL = () => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const templateId = urlParams.get('template')
+      
+      if (templateId) {
+        const template = getTemplateById(templateId)
+        if (template) {
+          if (templateId === 'device-dr-meeting') {
+            const variables = getDeviceDRTemplateVariables()
+            const { subject, body } = formatTemplate(template, variables)
+            setFormData(prev => ({
+              ...prev,
+              subject,
+              body
+            }))
+          } else {
+            setFormData(prev => ({
+              ...prev,
+              subject: template.subject,
+              body: template.body
+            }))
+          }
+        }
+      }
+    }
+  }
 
   const loadEmployees = async () => {
     try {
@@ -98,13 +129,19 @@ export default function SendEmailPage() {
 
   const loadTemplates = async () => {
     try {
+      // Use system templates for now
+      setTemplates(SYSTEM_TEMPLATES)
+      
+      // Also try to load from API if available
       const response = await fetch('/api/templates')
       const data = await response.json()
       if (data.success) {
-        setTemplates(data.templates)
+        setTemplates(prev => [...prev, ...data.templates])
       }
     } catch (error) {
       console.error('Failed to load templates:', error)
+      // Fallback to system templates
+      setTemplates(SYSTEM_TEMPLATES)
     }
   }
 
@@ -546,49 +583,80 @@ export default function SendEmailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-2">
-              <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <FileText className="w-4 h-4 mr-1" />
+            <div className="space-y-4">
+              {/* Device DR Meeting Quick Template */}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-blue-900">Device DR Meeting Template</h3>
+                    <p className="text-sm text-blue-700">Pre-filled template for Device DR meetings</p>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      const template = getTemplateById('device-dr-meeting')
+                      if (template) {
+                        const variables = getDeviceDRTemplateVariables()
+                        const { subject, body } = formatTemplate(template, variables)
+                        setFormData(prev => ({
+                          ...prev,
+                          subject,
+                          body
+                        }))
+                      }
+                    }}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Zap className="w-4 h-4 mr-1" />
                     Use Template
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Select Template</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="Search templates..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <div className="space-y-2 overflow-y-auto max-h-60">
-                      {filteredTemplates.map((template) => (
-                        <div
-                          key={template.id}
-                          className="p-3 border rounded-lg cursor-pointer hover:bg-muted"
-                          onClick={() => applyTemplate(template)}
-                        >
-                          <div className="font-medium">{template.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {template.subject}
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {template.category} {template.isSystem && '• System'}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                </div>
+              </div>
 
-              <Button variant="outline">
-                <Plus className="w-4 h-4 mr-1" />
-                Manage Templates
-              </Button>
+              <div className="flex gap-2">
+                <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <FileText className="w-4 h-4 mr-1" />
+                      All Templates
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Select Template</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <Input
+                        placeholder="Search templates..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                      <div className="space-y-2 overflow-y-auto max-h-60">
+                        {filteredTemplates.map((template) => (
+                          <div
+                            key={template.id}
+                            className="p-3 border rounded-lg cursor-pointer hover:bg-muted"
+                            onClick={() => applyTemplate(template)}
+                          >
+                            <div className="font-medium">{template.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {template.subject}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {template.category} {template.isSystem && '• System'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <Button variant="outline">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Manage Templates
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
