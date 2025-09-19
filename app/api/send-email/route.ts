@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { sendEmailInputSchema, validateEmailDomain, getAllowedEmailDomainSuffix, cleanEmailListNoValidation } from '@/lib/validators'
 import { createCalendarEvent, generateCalendarInvite } from '@/lib/calendar'
-import { generateCalendarInvitationEmail, CalendarInvitationParams } from '@/lib/calendar-invitation-generator'
+// import { generateCalendarInvitationEmail, CalendarInvitationParams } from '@/lib/calendar-invitation-generator'
+// DISABLED - Now using beautiful HTML templates instead
 
 type NormalizedSendEmailInput = {
   to: string[]
@@ -186,6 +187,9 @@ export async function POST(request: NextRequest) {
         return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
       }
       
+      // DISABLED - Calendar invitation generation
+      // Now using beautiful HTML templates instead
+      /*
       // Generate MIME multipart email with calendar invite
       const calendarParams: CalendarInvitationParams = {
         fromEmail: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
@@ -211,6 +215,9 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // DISABLED - Calendar invitation generation
+      // Now using beautiful HTML templates instead
+      /*
       // Generate complete MIME email
       const mimeEmail = generateCalendarInvitationEmail(calendarParams)
       
@@ -230,6 +237,7 @@ export async function POST(request: NextRequest) {
       delete mailOptions.text
       // Keep to, cc, from, and subject for nodemailer validation
       // The raw MIME will override the content but nodemailer needs these fields
+      */
     }
 
     const info = await transporter.sendMail(mailOptions)

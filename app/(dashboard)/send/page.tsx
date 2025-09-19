@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui
 import { Send, Users, Mail, FileText, Save, Copy, TestTube, Plus, X, Search, Calendar, Clock, MapPin, User, Zap } from 'lucide-react'
 import { SendEmailInput, CalendarEvent, CalendarAttendee } from '../../../lib/validators'
 import { COMMON_TIMEZONES, createUpdatedCalendarEvent, createCancelledCalendarEvent } from '../../../lib/calendar'
-import { SYSTEM_TEMPLATES, getTemplateById, formatTemplate, getDeviceDRTemplateVariables } from '../../../lib/templates'
+import { SYSTEM_TEMPLATES, getTemplateById, formatTemplate, getDeviceDRTemplateVariables, EmailTemplate } from '../../../lib/templates'
 
 interface Employee {
   id: string
@@ -30,14 +30,6 @@ interface Group {
   }>
 }
 
-interface Template {
-  id: string
-  name: string
-  category: string
-  subject: string
-  body: string
-  isSystem: boolean
-}
 
 export default function SendEmailPage() {
   const [formData, setFormData] = useState<SendEmailInput>({
@@ -55,7 +47,7 @@ export default function SendEmailPage() {
   const [ccInput, setCcInput] = useState('')
   const [employees, setEmployees] = useState<Employee[]>([])
   const [groups, setGroups] = useState<Group[]>([])
-  const [templates, setTemplates] = useState<Template[]>([])
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [showTemplateDialog, setShowTemplateDialog] = useState(false)
   const [showGroupDialog, setShowGroupDialog] = useState(false)
   const [showTestDialog, setShowTestDialog] = useState(false)
@@ -85,17 +77,19 @@ export default function SendEmailPage() {
         if (template) {
           if (templateId === 'device-dr-meeting') {
             const variables = getDeviceDRTemplateVariables()
-            const { subject, body } = formatTemplate(template, variables)
+            const { subject, body, isHtml } = formatTemplate(template, variables)
             setFormData(prev => ({
               ...prev,
               subject,
-              body
+              body,
+              isHtml
             }))
           } else {
             setFormData(prev => ({
               ...prev,
               subject: template.subject,
-              body: template.body
+              body: template.body,
+              isHtml: template.isHtml
             }))
           }
         }
@@ -205,11 +199,12 @@ export default function SendEmailPage() {
     setShowGroupDialog(false)
   }
 
-  const applyTemplate = (template: Template) => {
+  const applyTemplate = (template: EmailTemplate) => {
     setFormData(prev => ({
       ...prev,
       subject: template.subject,
-      body: template.body
+      body: template.body,
+      isHtml: template.isHtml
     }))
     setShowTemplateDialog(false)
   }
@@ -900,11 +895,12 @@ Tel: 0-3846-9700 #7650`,
                       const template = getTemplateById('device-dr-meeting')
                       if (template) {
                         const variables = getDeviceDRTemplateVariables()
-                        const { subject, body } = formatTemplate(template, variables)
+                        const { subject, body, isHtml } = formatTemplate(template, variables)
                         setFormData(prev => ({
                           ...prev,
                           subject,
-                          body
+                          body,
+                          isHtml
                         }))
                       }
                     }}

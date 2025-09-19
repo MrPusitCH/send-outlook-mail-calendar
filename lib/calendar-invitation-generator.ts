@@ -1,6 +1,9 @@
 /**
  * Calendar Invitation MIME Email Generator
  * Generates complete SMTP-ready emails with specific HTML body and iCalendar parts
+ * 
+ * NOTE: This file is now DISABLED - using beautiful HTML templates instead
+ * Commented out to preserve the code but not use it
  */
 
 export interface CalendarInvitationParams {
@@ -18,7 +21,10 @@ export interface CalendarInvitationParams {
 /**
  * Generate a complete MIME multipart email for calendar invitations
  * with the exact HTML body format specified in requirements
+ * 
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 export function generateCalendarInvitationEmail(params: CalendarInvitationParams): string {
   const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`
   
@@ -36,10 +42,13 @@ export function generateCalendarInvitationEmail(params: CalendarInvitationParams
   
   return headers + '\r\n' + mimeBody
 }
+*/
 
 /**
  * Generate MIME headers
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 function generateMIMEHeaders(params: CalendarInvitationParams, boundary: string): string {
   const headers: string[] = []
   
@@ -64,10 +73,13 @@ function generateMIMEHeaders(params: CalendarInvitationParams, boundary: string)
   
   return headers.join('\r\n')
 }
+*/
 
 /**
  * Generate MIME body with HTML and iCalendar parts
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 function generateMIMEBody(htmlBody: string, icalContent: string, boundary: string): string {
   const parts: string[] = []
   
@@ -90,11 +102,14 @@ function generateMIMEBody(htmlBody: string, icalContent: string, boundary: strin
   
   return parts.join('\r\n')
 }
+*/
 
 /**
  * Generate the exact HTML body as specified in requirements
  * Contains ONLY the announcement text block with simple <p> and <br> formatting
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 function generateExactHTMLBody(): string {
   return `<p>To: All concern member,<br>
 I would like to invite you to join Device DR meeting as below.<br>
@@ -117,11 +132,14 @@ R&D DIVISION / DEVICE GROUP<br>
 Tel : 0-3846-9700 #7650<br>
 --------------------------------------------------------</p>`
 }
+*/
 
 /**
  * Generate iCalendar content with proper attendee roles and RSVP settings
  * Following exact RFC5545 format requirements
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 function generateICalendarContent(params: CalendarInvitationParams): string {
   const lines: string[] = []
   
@@ -204,10 +222,13 @@ function generateICalendarContent(params: CalendarInvitationParams): string {
   
   return lines.join('\r\n')
 }
+*/
 
 /**
  * Generate example calendar invitation with sample data
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 export function generateExampleCalendarInvitation(): string {
   const params: CalendarInvitationParams = {
     fromEmail: 'DEDE_SYSTEM@dit.daikin.co.jp',
@@ -228,11 +249,14 @@ export function generateExampleCalendarInvitation(): string {
   
   return generateCalendarInvitationEmail(params)
 }
+*/
 
 /**
  * Generate the final MIME message string for SMTP transmission
  * This function returns the complete MIME message ready for SMTP
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 export function generateFinalMIMEMessage(): string {
   const fromEmail = 'DEDE_SYSTEM@dit.daikin.co.jp'
   const toEmails = ['john.doe@dit.daikin.co.jp', 'jane.smith@dit.daikin.co.jp']
@@ -260,11 +284,14 @@ export function generateFinalMIMEMessage(): string {
     dtEnd
   )
 }
+*/
 
 /**
  * Generate the final MIME message string for SMTP calendar invite
  * Returns the complete MIME message ready for SMTP transmission
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 export function generateSMTPCalendarInvite(
   fromEmail: string,
   toEmails: string[],
@@ -290,13 +317,16 @@ export function generateSMTPCalendarInvite(
   
   return generateCalendarInvitationEmail(params)
 }
+*/
 
 /**
  * Convert local time to UTC for iCalendar
  * @param localDateTime - Local datetime string (e.g., "2025-09-23T15:00:00")
  * @param timezone - Timezone (e.g., "Asia/Bangkok")
  * @returns UTC datetime string for iCalendar (e.g., "20250923T080000Z")
+ * DISABLED - Now using beautiful HTML templates instead
  */
+/*
 export function convertToUTCForICal(localDateTime: string, timezone: string): string {
   // For Asia/Bangkok (UTC+7), 15:00 local = 08:00 UTC
   const date = new Date(localDateTime)
@@ -313,3 +343,4 @@ export function convertToUTCForICal(localDateTime: string, timezone: string): st
   
   return utcDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
 }
+*/
