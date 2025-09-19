@@ -58,6 +58,17 @@ export default function SendEmailPage() {
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
+  const [sentMeetings, setSentMeetings] = useState<Array<{
+    id: string
+    uid: string
+    summary: string
+    start: string
+    end: string
+    attendees: string[]
+    sentAt: string
+    status: 'sent' | 'cancelled'
+  }>>([])
+  const [showSentMeetings, setShowSentMeetings] = useState(false)
 
   // Load data on component mount
   useEffect(() => {
@@ -66,6 +77,7 @@ export default function SendEmailPage() {
     loadTemplates()
     loadDraft()
     loadTemplateFromURL()
+    loadSentMeetings()
   }, [])
 
   // Load template from URL parameter
@@ -152,6 +164,38 @@ export default function SendEmailPage() {
     } catch (error) {
       console.error('Failed to load draft:', error)
     }
+  }
+
+  const loadSentMeetings = () => {
+    try {
+      const meetings = localStorage.getItem('sentMeetings')
+      if (meetings) {
+        setSentMeetings(JSON.parse(meetings))
+      }
+    } catch (error) {
+      console.error('Failed to load sent meetings:', error)
+    }
+  }
+
+  const saveSentMeetings = (meetings: typeof sentMeetings) => {
+    try {
+      localStorage.setItem('sentMeetings', JSON.stringify(meetings))
+      setSentMeetings(meetings)
+    } catch (error) {
+      console.error('Failed to save sent meetings:', error)
+    }
+  }
+
+  const addSentMeeting = (meeting: typeof sentMeetings[0]) => {
+    const updatedMeetings = [...sentMeetings, meeting]
+    saveSentMeetings(updatedMeetings)
+  }
+
+  const updateMeetingStatus = (uid: string, status: 'sent' | 'cancelled') => {
+    const updatedMeetings = sentMeetings.map(meeting => 
+      meeting.uid === uid ? { ...meeting, status } : meeting
+    )
+    saveSentMeetings(updatedMeetings)
   }
 
   const saveDraft = () => {
@@ -598,6 +642,22 @@ export default function SendEmailPage() {
       
       if (result.success) {
         setStatus({ type: 'success', message: 'Email sent successfully!' })
+        
+        // If calendar event was sent, store it with UID for cancellation
+        if (formData.calendarEvent && formData.calendarEvent.method !== 'CANCEL') {
+          const meeting = {
+            id: Date.now().toString(),
+            uid: formData.calendarEvent.uid || `meeting-${Date.now()}`,
+            summary: formData.calendarEvent.summary || 'Untitled Meeting',
+            start: formData.calendarEvent.start,
+            end: formData.calendarEvent.end,
+            attendees: formData.to,
+            sentAt: new Date().toISOString(),
+            status: 'sent' as const
+          }
+          addSentMeeting(meeting)
+        }
+        
         // Clear form
         setFormData({ to: [], cc: [], subject: '', body: '', isHtml: true })
         setShowCC(false)
@@ -892,6 +952,38 @@ Tel: 0-3846-9700 #7650`,
         }))
       } else {
         setStatus({ type: 'error', message: result.error || 'Failed to send cancellation email' })
+      }
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Network error occurred' })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const cancelMeetingByUID = async (meeting: typeof sentMeetings[0]) => {
+    setSending(true)
+    try {
+      const response = await fetch('/api/cancel-meeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meetingId: meeting.id,
+          uid: meeting.uid,
+          summary: meeting.summary,
+          start: meeting.start,
+          end: meeting.end,
+          attendees: meeting.attendees,
+          reason: 'Meeting cancelled by organizer'
+        })
+      })
+
+      const result = await response.json()
+      
+      if (result.success) {
+        updateMeetingStatus(meeting.uid, 'cancelled')
+        setStatus({ type: 'success', message: `Meeting "${meeting.summary}" cancelled successfully! UID: ${meeting.uid}` })
+      } else {
+        setStatus({ type: 'error', message: result.error || 'Failed to cancel meeting' })
       }
     } catch (error) {
       setStatus({ type: 'error', message: 'Network error occurred' })
@@ -1699,9 +1791,90 @@ Tel: 0-3846-9700 #7650`,
                 <Save className="w-4 h-4 mr-1" />
                 Save Draft
               </Button>
+
+              {sentMeetings.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowSentMeetings(!showSentMeetings)}
+                  className="text-purple-600 hover:text-purple-700"
+                >
+                  <Calendar className="w-4 h-4 mr-1" />
+                  Sent Meetings ({sentMeetings.length})
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Sent Meetings History */}
+        {showSentMeetings && sentMeetings.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Sent Meetings History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {sentMeetings.map((meeting) => (
+                  <div key={meeting.id} className="p-4 border rounded-lg bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-medium text-gray-900">{meeting.summary}</h3>
+                          <Badge variant={meeting.status === 'cancelled' ? 'destructive' : 'default'}>
+                            {meeting.status === 'cancelled' ? 'Cancelled' : 'Active'}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <div><strong>UID:</strong> <code className="bg-gray-200 px-1 rounded text-xs">{meeting.uid}</code></div>
+                          <div><strong>Date:</strong> {new Date(meeting.start).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}</div>
+                          <div><strong>Attendees:</strong> {meeting.attendees.length} participants</div>
+                          <div><strong>Sent:</strong> {new Date(meeting.sentAt).toLocaleString('en-US')}</div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {meeting.status === 'sent' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => cancelMeetingByUID(meeting)}
+                            disabled={sending}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Cancel Meeting
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(meeting.uid)
+                            setStatus({ type: 'success', message: 'UID copied to clipboard!' })
+                            setTimeout(() => setStatus({ type: null, message: '' }), 3000)
+                          }}
+                        >
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copy UID
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Cancel Meeting Dialog */}
         <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
@@ -1713,7 +1886,7 @@ Tel: 0-3846-9700 #7650`,
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="p-3 border border-red-200 rounded-lg bg-red-50">
                 <p className="text-sm text-red-700">
                   <strong>⚠️ Warning:</strong> This will cancel the meeting and send cancellation emails to all participants with a .ics cancellation file.
                 </p>
@@ -1730,9 +1903,9 @@ Tel: 0-3846-9700 #7650`,
               </div>
 
               {formData.calendarEvent && (
-                <div className="p-3 bg-gray-50 rounded-lg border">
+                <div className="p-3 border rounded-lg bg-gray-50">
                   <div className="text-sm">
-                    <div className="font-medium text-gray-900 mb-1">
+                    <div className="mb-1 font-medium text-gray-900">
                       {formData.calendarEvent.summary || 'Untitled Event'}
                     </div>
                     <div className="text-gray-600">
@@ -1746,7 +1919,7 @@ Tel: 0-3846-9700 #7650`,
                         hour12: true
                       })}
                     </div>
-                    <div className="text-gray-500 text-xs mt-1">
+                    <div className="mt-1 text-xs text-gray-500">
                       {formData.to.length + (formData.cc?.length || 0)} participants will be notified
                     </div>
                   </div>
