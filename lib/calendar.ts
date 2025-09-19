@@ -96,6 +96,23 @@ function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
 }
 
 /**
+ * Apply line folding for lines > 75 octets (RFC5545)
+ */
+function foldLine(line: string): string {
+  if (line.length <= 75) return line
+  const folded: string[] = []
+  let remaining = line
+  while (remaining.length > 75) {
+    folded.push(remaining.substring(0, 75))
+    remaining = ' ' + remaining.substring(75) // Space + continuation
+  }
+  if (remaining.length > 0) {
+    folded.push(remaining)
+  }
+  return folded.join('\r\n')
+}
+
+/**
  * Generate iCalendar content for an event
  */
 export function generateICalContent(event: CalendarEvent): string {
@@ -116,15 +133,15 @@ export function generateICalContent(event: CalendarEvent): string {
   }
   
   if (event.summary) {
-    lines.push(`SUMMARY:${escapeICalText(event.summary)}`)
+    lines.push(foldLine(`SUMMARY:${escapeICalText(event.summary)}`))
   }
   
   if (event.description) {
-    lines.push(`DESCRIPTION:${escapeICalText(event.description)}`)
+    lines.push(foldLine(`DESCRIPTION:${escapeICalText(event.description)}`))
   }
   
   if (event.location) {
-    lines.push(`LOCATION:${escapeICalText(event.location)}`)
+    lines.push(foldLine(`LOCATION:${escapeICalText(event.location)}`))
   }
   
   // Date/time
@@ -140,14 +157,14 @@ export function generateICalContent(event: CalendarEvent): string {
   
   // Organizer
   if (event.organizer?.name && event.organizer?.email) {
-    lines.push(`ORGANIZER;CN="${escapeICalText(event.organizer.name)}":mailto:${event.organizer.email}`)
+    lines.push(foldLine(`ORGANIZER;CN="${escapeICalText(event.organizer.name)}":mailto:${event.organizer.email}`))
   }
   
   // Attendees
   if (event.attendees) {
     event.attendees.forEach(attendee => {
       if (attendee.email) {
-        lines.push(formatAttendee(attendee))
+        lines.push(foldLine(formatAttendee(attendee)))
       }
     })
   }
