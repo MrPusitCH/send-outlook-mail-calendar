@@ -190,9 +190,9 @@ export async function POST(request: NextRequest) {
         'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
       }
 
-      // For cancellations, use proper MIME structure
+      // Use proper MIME structure for all calendar events
       if (calendarEvent.method === 'CANCEL') {
-        // Use Nodemailer's built-in multipart support
+        // For cancellations, use multipart/alternative with text and calendar
         mailOptions.alternatives = [
           {
             contentType: 'text/plain; charset=UTF-8',
@@ -200,6 +200,22 @@ export async function POST(request: NextRequest) {
           },
           {
             contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
+            content: calendarInvite.content
+          }
+        ]
+        
+        // Remove individual text/html properties when using alternatives
+        delete mailOptions.text
+        delete mailOptions.html
+      } else {
+        // For regular invitations, use multipart/alternative with HTML and calendar
+        mailOptions.alternatives = [
+          {
+            contentType: 'text/html; charset=UTF-8',
+            content: emailBody
+          },
+          {
+            contentType: 'text/calendar; method=REQUEST; charset=UTF-8',
             content: calendarInvite.content
           }
         ]
