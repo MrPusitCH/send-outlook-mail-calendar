@@ -71,11 +71,12 @@ function escapeICalText(text: string): string {
 
 /**
  * Format attendee for iCalendar
+ * Enhanced for Outlook compatibility
  */
 function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
   const parts: string[] = []
 
-  // CN (Common Name) is required for proper display
+  // CN (Common Name) - required for Outlook
   if (attendee.name) {
     parts.push(`CN=${escapeICalText(attendee.name)}`)
   } else {
@@ -84,20 +85,21 @@ function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
     parts.push(`CN=${escapeICalText(name)}`)
   }
 
-  // ROLE is required
+  // ROLE - required for Outlook
   if (attendee.role) {
     parts.push(`ROLE=${attendee.role}`)
   }
 
-  // RSVP is required - CC attendees (OPT-PARTICIPANT) should have RSVP=FALSE
+  // RSVP - required for Outlook
   const rsvp = attendee.role === 'OPT-PARTICIPANT' ? 'FALSE' : 'TRUE'
   parts.push(`RSVP=${rsvp}`)
 
-  // PARTSTAT (Participation Status) is required
+  // PARTSTAT - for cancellations, keep as NEEDS-ACTION
   if (attendee.status) {
     parts.push(`PARTSTAT=${attendee.status}`)
   }
 
+  // Email address
   parts.push(`mailto:${attendee.email}`)
 
   return `ATTENDEE;${parts.join(';')}`
@@ -122,59 +124,72 @@ function foldLine(line: string): string {
 
 /**
  * Generate iCalendar content for an event
+ * Enhanced for Outlook compatibility with proper CANCEL handling
  */
 export function generateICalContent(event: CalendarEvent): string {
   const lines: string[] = []
-  
-  // Header
+
+  // Header - Outlook-safe format
   lines.push('BEGIN:VCALENDAR')
   lines.push('VERSION:2.0')
   lines.push('PRODID:-//DEDE_SYSTEM//Email Calendar//EN')
   lines.push('CALSCALE:GREGORIAN')
   lines.push(`METHOD:${event.method || 'REQUEST'}`)
-  
+
   // Event
   lines.push('BEGIN:VEVENT')
-  
-  // Required fields
+
+  // UID - MUST be exact same as original for cancellations
   if (event.uid) {
     lines.push(`UID:${event.uid}`)
   }
-  
-  // DTSTAMP is required
+
+  // SEQUENCE - MUST be incremented for cancellations (original: 0, cancel: 1)
+  if (event.sequence !== undefined) {
+    lines.push(`SEQUENCE:${event.sequence}`)
+  }
+
+  // DTSTAMP - Current timestamp in UTC
   const now = new Date()
   lines.push(`DTSTAMP:${now.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`)
-  
-  // Date/time - prefer UTC with Z suffix for better compatibility
+
+  // Date/time - MUST match original invite exactly for cancellations
   if (event.start && event.end) {
+    // For Outlook compatibility, prefer UTC with Z suffix
     const startUTC = new Date(event.start).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
     const endUTC = new Date(event.end).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
     lines.push(`DTSTART:${startUTC}`)
     lines.push(`DTEND:${endUTC}`)
   }
-  
-  // Summary is required
+
+  // Summary - for cancellations, append "(Cancelled)" to make it clear
   if (event.summary) {
-    lines.push(foldLine(`SUMMARY:${escapeICalText(event.summary)}`))
+    const summary = event.method === 'CANCEL' 
+      ? `${event.summary} (Cancelled)`
+      : event.summary
+    lines.push(foldLine(`SUMMARY:${escapeICalText(summary)}`))
   }
-  
-  // Description
+
+  // Description - for cancellations, add cancellation notice
   if (event.description) {
-    lines.push(foldLine(`DESCRIPTION:${escapeICalText(event.description)}`))
+    const description = event.method === 'CANCEL' 
+      ? `This meeting has been cancelled.\n\n${event.description}`
+      : event.description
+    lines.push(foldLine(`DESCRIPTION:${escapeICalText(description)}`))
   }
-  
-  // Location
+
   if (event.location) {
     lines.push(foldLine(`LOCATION:${escapeICalText(event.location)}`))
   }
-  
-  // Organizer - required for calendar invites
+
+  // Organizer - MUST match original event organizer for cancellations to work
+  // Format: ORGANIZER;CN=Name:mailto:email@domain.com
   if (event.organizer?.email) {
     const organizerName = event.organizer.name || 'DEDE_SYSTEM'
     lines.push(foldLine(`ORGANIZER;CN=${escapeICalText(organizerName)}:mailto:${event.organizer.email}`))
   }
-  
-  // Attendees - at least one required for calendar invites
+
+  // Attendees - MUST include all original attendees for cancellations
   if (event.attendees) {
     event.attendees.forEach(attendee => {
       if (attendee.email) {
@@ -182,21 +197,16 @@ export function generateICalContent(event: CalendarEvent): string {
       }
     })
   }
-  
-  // Status
+
+  // Status - Critical for cancellations
   if (event.status) {
     lines.push(`STATUS:${event.status}`)
   }
-  
-  // Sequence - required for updates
-  if (event.sequence !== undefined) {
-    lines.push(`SEQUENCE:${event.sequence}`)
-  }
-  
+
   // End event
   lines.push('END:VEVENT')
   lines.push('END:VCALENDAR')
-  
+
   return lines.join('\r\n')
 }
 
@@ -209,7 +219,7 @@ export function generateCalendarInvite(event: CalendarEvent): {
   contentType: string
 } {
   const icalContent = generateICalContent(event)
-  
+
   return {
     filename: `${(event.summary || 'event').replace(/[^a-zA-Z0-9]/g, '_')}.ics`,
     content: icalContent,
@@ -290,13 +300,19 @@ export function createUpdatedCalendarEvent(
 
 /**
  * Create a cancelled calendar event
+ * Enhanced for Outlook compatibility with proper sequence handling
  */
 export function createCancelledCalendarEvent(originalEvent: CalendarEvent): CalendarEvent {
   return {
     ...originalEvent,
     method: 'CANCEL',
     status: 'CANCELLED',
-    sequence: (originalEvent.sequence || 0) + 1
+    sequence: (originalEvent.sequence || 0) + 1,
+    // Ensure organizer is preserved exactly as original
+    organizer: originalEvent.organizer || {
+      name: 'DEDE_SYSTEM',
+      email: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+    }
   }
 }
 

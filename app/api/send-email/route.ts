@@ -178,27 +178,8 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Create proper calendar event using the calendar library
-      const event = createCalendarEvent({
-        uid: calendarEvent.uid || `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
-        summary: calendarEvent.summary || subject,
-        description: calendarEvent.description || emailBody.replace(/<[^>]*>/g, ''),
-        location: calendarEvent.location || '',
-        start: calendarEvent.start || new Date().toISOString(),
-        end: calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        organizerName: process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM',
-        organizerEmail: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
-        attendeeEmails: to,
-        attendeeNames: to.map(email => email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())),
-        ccAttendeeEmails: cleanCC,
-        ccAttendeeNames: cleanCC.map(email => email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())),
-        method: calendarEvent.method || 'REQUEST',
-        status: calendarEvent.status || 'CONFIRMED',
-        sequence: calendarEvent.sequence || 0
-      })
-
-      // Generate calendar invite using the proper library
-      const calendarInvite = generateCalendarInvite(event)
+      // Generate .ics calendar invite using the enhanced calendar library
+      const calendarInvite = generateCalendarInvite(calendarEvent)
 
       // Add calendar headers for proper Outlook recognition
       mailOptions.headers = {
@@ -209,7 +190,7 @@ export async function POST(request: NextRequest) {
         'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
       }
 
-      // Use proper MIME structure with multipart/alternative
+      // Use proper MIME structure for all calendar events
       if (calendarEvent.method === 'CANCEL') {
         // For cancellations, use multipart/alternative with text and calendar
         mailOptions.alternatives = [
@@ -257,12 +238,20 @@ export async function POST(request: NextRequest) {
 
     const info = await transporter.sendMail(mailOptions)
 
-    // Log success
+    // Log success with calendar details if present
+    if (calendarEvent) {
+      console.log(`[CALENDAR_${calendarEvent.method || 'REQUEST'}] UID: ${calendarEvent.uid || 'generated'}, SEQUENCE: ${calendarEvent.sequence || 0}, Recipients: ${[...to, ...cleanCC].join(', ')}, Status: SENT, MessageID: ${info.messageId}, Organizer: ${calendarEvent.organizer?.email || 'unknown'}, Method: ${calendarEvent.method || 'REQUEST'}`)
+    }
     logEmail(to, subject, 'SUCCESS')
-    
+
     return NextResponse.json({
       success: true,
       messageId: info.messageId,
+      calendarEvent: calendarEvent ? {
+        method: calendarEvent.method || 'REQUEST',
+        uid: calendarEvent.uid,
+        sequence: calendarEvent.sequence || 0
+      } : undefined
     })
     
   } catch (error) {
