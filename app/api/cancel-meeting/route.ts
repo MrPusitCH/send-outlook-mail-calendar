@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       ]
     }
 
-    // Send email
+    // Send emails
     const info = await transporter.sendMail(mailOptions)
 
     return NextResponse.json({
