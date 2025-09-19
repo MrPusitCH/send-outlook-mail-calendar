@@ -62,114 +62,6 @@ function logEmail(to: string | string[], subject: string, status: 'SUCCESS' | 'F
   })
 }
 
-/**
- * Generate .ics calendar content for RSVP invitations with enhanced time table support
- */
-function generateICSContent(params: {
-  uid: string
-  dtStart: string
-  dtEnd: string
-  summary: string
-  description: string
-  location: string
-  organizer: string
-  attendees: string[]
-  method?: string
-}): string {
-  const lines: string[] = []
-
-  const method = params.method || 'REQUEST'
-
-  // iCalendar header
-  lines.push('BEGIN:VCALENDAR')
-  lines.push('VERSION:2.0')
-  lines.push('PRODID:-//DEDE_SYSTEM//Calendar Invite//EN')
-  lines.push(`METHOD:${method}`)
-  lines.push('CALSCALE:GREGORIAN')
-
-  // Timezone definition for Asia/Bangkok (helps with time table display)
-  lines.push('BEGIN:VTIMEZONE')
-  lines.push('TZID:Asia/Bangkok')
-  lines.push('BEGIN:STANDARD')
-  lines.push('DTSTART:19700101T000000')
-  lines.push('TZOFFSETFROM:+0700')
-  lines.push('TZOFFSETTO:+0700')
-  lines.push('TZNAME:+07')
-  lines.push('END:STANDARD')
-  lines.push('END:VTIMEZONE')
-
-  // Event
-  lines.push('BEGIN:VEVENT')
-  lines.push(`UID:${params.uid}`)
-  lines.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`)
-
-  // Use timezone-aware time format for better calendar display
-  const localStartTime = params.dtStart.replace('Z', '')
-  const localEndTime = params.dtEnd.replace('Z', '')
-  lines.push(`DTSTART;TZID=Asia/Bangkok:${localStartTime}`)
-  lines.push(`DTEND;TZID=Asia/Bangkok:${localEndTime}`)
-
-  lines.push(`SUMMARY:${escapeICalText(params.summary)}`)
-
-  if (params.description) {
-    lines.push(`DESCRIPTION:${escapeICalText(params.description)}`)
-  }
-
-  if (params.location) {
-    lines.push(`LOCATION:${escapeICalText(params.location)}`)
-  }
-
-  // Organizer with display name
-  lines.push(`ORGANIZER;CN=DEDE_SYSTEM:mailto:${params.organizer}`)
-
-  // Add attendees with RSVP and proper display names
-  params.attendees.forEach(email => {
-    const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    lines.push(`ATTENDEE;CN=${escapeICalText(name)};RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:${email}`)
-  })
-
-  // Additional properties for better calendar integration
-  if (method === 'CANCEL') {
-    lines.push('STATUS:CANCELLED')
-  } else {
-    lines.push('STATUS:CONFIRMED')
-  }
-
-  lines.push('SEQUENCE:0')
-  lines.push('TRANSP:OPAQUE')
-  lines.push('CLASS:PUBLIC')
-
-  // Request delivery and read receipts (only for invitations, not cancellations)
-  if (method !== 'CANCEL') {
-    lines.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY')
-    lines.push('X-MICROSOFT-CDO-IMPORTANCE:1')
-    lines.push('X-MICROSOFT-DISALLOW-COUNTER:FALSE')
-
-    // Reminder alarm (15 minutes before) - only for invitations
-    lines.push('BEGIN:VALARM')
-    lines.push('TRIGGER:-PT15M')
-    lines.push('ACTION:DISPLAY')
-    lines.push(`DESCRIPTION:Reminder: ${escapeICalText(params.summary)}`)
-    lines.push('END:VALARM')
-  }
-
-  lines.push('END:VEVENT')
-  lines.push('END:VCALENDAR')
-
-  return lines.join('\r\n')
-}
-
-/**
- * Escape text for iCalendar format (RFC5545)
- */
-function escapeICalText(text: string): string {
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '')
-}
 
 function normalizeEmails(value: unknown): string[] {
   if (!value) {
@@ -286,37 +178,79 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Convert times to UTC format for iCalendar
-      const startTime = calendarEvent.start || new Date().toISOString()
-      const endTime = calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString()
-
-      // Format times for iCalendar (local timezone format for Asia/Bangkok)
-      const formatICalTime = (dateString: string): string => {
-        const date = new Date(dateString)
-        // Convert to Asia/Bangkok timezone (+7 hours from UTC)
-        const bangkokTime = new Date(date.getTime() + (7 * 60 * 60 * 1000))
-        return bangkokTime.toISOString().replace(/[-:]/g, '').split('.')[0]
-      }
-
-      // Generate .ics calendar invite attachment
-      const icsContent = generateICSContent({
-        uid: `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
-        dtStart: formatICalTime(startTime),
-        dtEnd: formatICalTime(endTime),
+      // Create proper calendar event using the calendar library
+      const event = createCalendarEvent({
+        uid: calendarEvent.uid || `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
         summary: calendarEvent.summary || subject,
         description: calendarEvent.description || emailBody.replace(/<[^>]*>/g, ''),
         location: calendarEvent.location || '',
-        organizer: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
-        attendees: [...to, ...cleanCC],
-        method: calendarEvent.method || 'REQUEST'
+        start: calendarEvent.start || new Date().toISOString(),
+        end: calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        organizerName: process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM',
+        organizerEmail: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
+        attendeeEmails: to,
+        attendeeNames: to.map(email => email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())),
+        ccAttendeeEmails: cleanCC,
+        ccAttendeeNames: cleanCC.map(email => email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())),
+        method: calendarEvent.method || 'REQUEST',
+        status: calendarEvent.status || 'CONFIRMED',
+        sequence: calendarEvent.sequence || 0
       })
 
-      // Add .ics file as attachment
+      // Generate calendar invite using the proper library
+      const calendarInvite = generateCalendarInvite(event)
+
+      // Add calendar headers for proper Outlook recognition
+      mailOptions.headers = {
+        'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MICROSOFT-CDO-BUSYSTATUS': calendarEvent.method === 'CANCEL' ? 'FREE' : 'BUSY',
+        'X-MICROSOFT-CDO-IMPORTANCE': '1',
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
+      }
+
+      // Use proper MIME structure with multipart/alternative
+      if (calendarEvent.method === 'CANCEL') {
+        // For cancellations, use multipart/alternative with text and calendar
+        mailOptions.alternatives = [
+          {
+            contentType: 'text/plain; charset=UTF-8',
+            content: emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
+          },
+          {
+            contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
+            content: calendarInvite.content
+          }
+        ]
+        
+        // Remove individual text/html properties when using alternatives
+        delete mailOptions.text
+        delete mailOptions.html
+      } else {
+        // For regular invitations, use multipart/alternative with HTML and calendar
+        mailOptions.alternatives = [
+          {
+            contentType: 'text/html; charset=UTF-8',
+            content: emailBody
+          },
+          {
+            contentType: 'text/calendar; method=REQUEST; charset=UTF-8',
+            content: calendarInvite.content
+          }
+        ]
+        
+        // Remove individual text/html properties when using alternatives
+        delete mailOptions.text
+        delete mailOptions.html
+      }
+
+      // Add .ics file as attachment for better compatibility
       mailOptions.attachments = [
         {
           filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
-          content: icsContent,
-          contentType: 'text/calendar; method=' + (calendarEvent.method || 'REQUEST') + '; charset=UTF-8'
+          content: calendarInvite.content,
+          contentType: calendarInvite.contentType,
+          contentDisposition: 'attachment' as const
         }
       ]
     }

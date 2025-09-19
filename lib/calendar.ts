@@ -75,21 +75,29 @@ function escapeICalText(text: string): string {
 function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
   const parts: string[] = []
 
+  // CN (Common Name) is required for proper display
   if (attendee.name) {
-    parts.push(`CN="${escapeICalText(attendee.name)}"`)
+    parts.push(`CN=${escapeICalText(attendee.name)}`)
+  } else {
+    // Generate name from email if not provided
+    const name = attendee.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    parts.push(`CN=${escapeICalText(name)}`)
   }
 
+  // ROLE is required
   if (attendee.role) {
     parts.push(`ROLE=${attendee.role}`)
   }
 
+  // RSVP is required - CC attendees (OPT-PARTICIPANT) should have RSVP=FALSE
+  const rsvp = attendee.role === 'OPT-PARTICIPANT' ? 'FALSE' : 'TRUE'
+  parts.push(`RSVP=${rsvp}`)
+
+  // PARTSTAT (Participation Status) is required
   if (attendee.status) {
     parts.push(`PARTSTAT=${attendee.status}`)
   }
 
-  // CC attendees (OPT-PARTICIPANT) should have RSVP=FALSE
-  const rsvp = attendee.role === 'OPT-PARTICIPANT' ? 'FALSE' : 'TRUE'
-  parts.push(`RSVP=${rsvp}`)
   parts.push(`mailto:${attendee.email}`)
 
   return `ATTENDEE;${parts.join(';')}`
@@ -123,44 +131,50 @@ export function generateICalContent(event: CalendarEvent): string {
   lines.push('VERSION:2.0')
   lines.push('PRODID:-//DEDE_SYSTEM//Email Calendar//EN')
   lines.push('CALSCALE:GREGORIAN')
-  lines.push('METHOD:' + (event.method || 'REQUEST'))
+  lines.push(`METHOD:${event.method || 'REQUEST'}`)
   
   // Event
   lines.push('BEGIN:VEVENT')
   
+  // Required fields
   if (event.uid) {
     lines.push(`UID:${event.uid}`)
   }
   
+  // DTSTAMP is required
+  const now = new Date()
+  lines.push(`DTSTAMP:${now.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`)
+  
+  // Date/time - prefer UTC with Z suffix for better compatibility
+  if (event.start && event.end) {
+    const startUTC = new Date(event.start).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    const endUTC = new Date(event.end).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    lines.push(`DTSTART:${startUTC}`)
+    lines.push(`DTEND:${endUTC}`)
+  }
+  
+  // Summary is required
   if (event.summary) {
     lines.push(foldLine(`SUMMARY:${escapeICalText(event.summary)}`))
   }
   
+  // Description
   if (event.description) {
     lines.push(foldLine(`DESCRIPTION:${escapeICalText(event.description)}`))
   }
   
+  // Location
   if (event.location) {
     lines.push(foldLine(`LOCATION:${escapeICalText(event.location)}`))
   }
   
-  // Date/time
-  if (event.start && event.end) {
-    if (event.timezone) {
-      lines.push(`DTSTART;TZID=${event.timezone}:${formatICalDate(event.start, event.timezone)}`)
-      lines.push(`DTEND;TZID=${event.timezone}:${formatICalDate(event.end, event.timezone)}`)
-    } else {
-      lines.push(`DTSTART:${formatICalDate(event.start)}`)
-      lines.push(`DTEND:${formatICalDate(event.end)}`)
-    }
+  // Organizer - required for calendar invites
+  if (event.organizer?.email) {
+    const organizerName = event.organizer.name || 'DEDE_SYSTEM'
+    lines.push(foldLine(`ORGANIZER;CN=${escapeICalText(organizerName)}:mailto:${event.organizer.email}`))
   }
   
-  // Organizer
-  if (event.organizer?.name && event.organizer?.email) {
-    lines.push(foldLine(`ORGANIZER;CN="${escapeICalText(event.organizer.name)}":mailto:${event.organizer.email}`))
-  }
-  
-  // Attendees
+  // Attendees - at least one required for calendar invites
   if (event.attendees) {
     event.attendees.forEach(attendee => {
       if (attendee.email) {
@@ -169,20 +183,15 @@ export function generateICalContent(event: CalendarEvent): string {
     })
   }
   
-  // Status and sequence
+  // Status
   if (event.status) {
     lines.push(`STATUS:${event.status}`)
   }
   
+  // Sequence - required for updates
   if (event.sequence !== undefined) {
     lines.push(`SEQUENCE:${event.sequence}`)
   }
-  
-  // Timestamps
-  const now = new Date().toISOString()
-  lines.push(`DTSTAMP:${formatICalDate(now)}`)
-  lines.push(`CREATED:${formatICalDate(now)}`)
-  lines.push(`LAST-MODIFIED:${formatICalDate(now)}`)
   
   // End event
   lines.push('END:VEVENT')
@@ -204,7 +213,7 @@ export function generateCalendarInvite(event: CalendarEvent): {
   return {
     filename: `${(event.summary || 'event').replace(/[^a-zA-Z0-9]/g, '_')}.ics`,
     content: icalContent,
-    contentType: 'text/calendar; charset=utf-8; method=' + (event.method || 'REQUEST')
+    contentType: `text/calendar; method=${event.method || 'REQUEST'}; charset=UTF-8`
   }
 }
 
