@@ -117,34 +117,34 @@ function foldLine(line: string): string {
  */
 export function generateICalContent(event: CalendarEvent): string {
   const lines: string[] = []
-  
+
   // Header
   lines.push('BEGIN:VCALENDAR')
   lines.push('VERSION:2.0')
   lines.push('PRODID:-//DEDE_SYSTEM//Email Calendar//EN')
   lines.push('CALSCALE:GREGORIAN')
   lines.push('METHOD:' + (event.method || 'REQUEST'))
-  
+
   // Event
   lines.push('BEGIN:VEVENT')
-  
+
   if (event.uid) {
     lines.push(`UID:${event.uid}`)
   }
-  
+
   if (event.summary) {
     lines.push(foldLine(`SUMMARY:${escapeICalText(event.summary)}`))
   }
-  
+
   if (event.description) {
     lines.push(foldLine(`DESCRIPTION:${escapeICalText(event.description)}`))
   }
-  
+
   if (event.location) {
     lines.push(foldLine(`LOCATION:${escapeICalText(event.location)}`))
   }
-  
-  // Date/time
+
+  // Date/time - MUST be consistent between original and cancellation
   if (event.start && event.end) {
     if (event.timezone) {
       lines.push(`DTSTART;TZID=${event.timezone}:${formatICalDate(event.start, event.timezone)}`)
@@ -154,12 +154,12 @@ export function generateICalContent(event: CalendarEvent): string {
       lines.push(`DTEND:${formatICalDate(event.end)}`)
     }
   }
-  
-  // Organizer
+
+  // Organizer - MUST match original event organizer for cancellations to work
   if (event.organizer?.name && event.organizer?.email) {
     lines.push(foldLine(`ORGANIZER;CN="${escapeICalText(event.organizer.name)}":mailto:${event.organizer.email}`))
   }
-  
+
   // Attendees
   if (event.attendees) {
     event.attendees.forEach(attendee => {
@@ -168,26 +168,27 @@ export function generateICalContent(event: CalendarEvent): string {
       }
     })
   }
-  
-  // Status and sequence
+
+  // Status and sequence - Critical for cancellations
   if (event.status) {
     lines.push(`STATUS:${event.status}`)
   }
-  
+
+  // SEQUENCE must be incremented for cancellations (original: 0, cancel: 1)
   if (event.sequence !== undefined) {
     lines.push(`SEQUENCE:${event.sequence}`)
   }
-  
+
   // Timestamps
   const now = new Date().toISOString()
   lines.push(`DTSTAMP:${formatICalDate(now)}`)
   lines.push(`CREATED:${formatICalDate(now)}`)
   lines.push(`LAST-MODIFIED:${formatICalDate(now)}`)
-  
+
   // End event
   lines.push('END:VEVENT')
   lines.push('END:VCALENDAR')
-  
+
   return lines.join('\r\n')
 }
 
@@ -200,11 +201,11 @@ export function generateCalendarInvite(event: CalendarEvent): {
   contentType: string
 } {
   const icalContent = generateICalContent(event)
-  
+
   return {
     filename: `${(event.summary || 'event').replace(/[^a-zA-Z0-9]/g, '_')}.ics`,
     content: icalContent,
-    contentType: 'text/calendar; charset=utf-8; method=' + (event.method || 'REQUEST')
+    contentType: `text/calendar; method=${event.method || 'REQUEST'}; charset=UTF-8`
   }
 }
 

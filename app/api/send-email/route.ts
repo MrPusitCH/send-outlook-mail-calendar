@@ -75,6 +75,7 @@ function generateICSContent(params: {
   organizer: string
   attendees: string[]
   method?: string
+  sequence?: number
 }): string {
   const lines: string[] = []
 
@@ -125,8 +126,15 @@ function generateICSContent(params: {
   // Add attendees with RSVP and proper display names
   params.attendees.forEach(email => {
     const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    lines.push(`ATTENDEE;CN=${escapeICalText(name)};RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:${email}`)
+    const partstat = method === 'CANCEL' ? 'NEEDS-ACTION' : 'NEEDS-ACTION'
+    lines.push(`ATTENDEE;CN=${escapeICalText(name)};RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=${partstat}:mailto:${email}`)
   })
+
+  // For cancellations, also add the organizer as an attendee to ensure proper cancellation
+  if (method === 'CANCEL' && !params.attendees.includes(params.organizer)) {
+    const organizerName = params.organizer.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    lines.push(`ATTENDEE;CN=${escapeICalText(organizerName)};RSVP=FALSE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:${params.organizer}`)
+  }
 
   // Additional properties for better calendar integration
   if (method === 'CANCEL') {
@@ -135,7 +143,7 @@ function generateICSContent(params: {
     lines.push('STATUS:CONFIRMED')
   }
 
-  lines.push('SEQUENCE:0')
+  lines.push(`SEQUENCE:${params.sequence || 0}`)
   lines.push('TRANSP:OPAQUE')
   lines.push('CLASS:PUBLIC')
 
@@ -300,7 +308,7 @@ export async function POST(request: NextRequest) {
 
       // Generate .ics calendar invite attachment
       const icsContent = generateICSContent({
-        uid: `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
+        uid: calendarEvent.uid || `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
         dtStart: formatICalTime(startTime),
         dtEnd: formatICalTime(endTime),
         summary: calendarEvent.summary || subject,
@@ -308,27 +316,49 @@ export async function POST(request: NextRequest) {
         location: calendarEvent.location || '',
         organizer: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
         attendees: [...to, ...cleanCC],
-        method: calendarEvent.method || 'REQUEST'
+        method: calendarEvent.method || 'REQUEST',
+        sequence: calendarEvent.sequence || (calendarEvent.method === 'CANCEL' ? 1 : 0)
       })
 
-      // Add .ics file as attachment
+      // Add calendar headers for proper recognition
+      mailOptions.headers = {
+        'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
+        'Content-Class': 'urn:content-classes:calendarmessage'
+      }
+
+      // Add .ics file as both inline and attachment for better compatibility
       mailOptions.attachments = [
         {
           filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
           content: icsContent,
-          contentType: 'text/calendar; method=' + (calendarEvent.method || 'REQUEST') + '; charset=UTF-8'
+          contentType: `text/calendar; method=${calendarEvent.method || 'REQUEST'}; charset=UTF-8`,
+          contentDisposition: 'inline'
+        },
+        {
+          filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
+          content: icsContent,
+          contentType: `text/calendar; method=${calendarEvent.method || 'REQUEST'}; charset=UTF-8`,
+          contentDisposition: 'attachment'
         }
       ]
     }
 
     const info = await transporter.sendMail(mailOptions)
 
-    // Log success
+    // Log success with calendar details if present
+    if (calendarEvent) {
+      console.log(`[CALENDAR_${calendarEvent.method || 'REQUEST'}] UID: ${calendarEvent.uid || 'generated'}, SEQUENCE: ${calendarEvent.sequence || 0}, Recipients: ${[...to, ...cleanCC].join(', ')}, Status: SENT, MessageID: ${info.messageId}`)
+    }
     logEmail(to, subject, 'SUCCESS')
-    
+
     return NextResponse.json({
       success: true,
       messageId: info.messageId,
+      calendarEvent: calendarEvent ? {
+        method: calendarEvent.method || 'REQUEST',
+        uid: calendarEvent.uid,
+        sequence: calendarEvent.sequence || 0
+      } : undefined
     })
     
   } catch (error) {
