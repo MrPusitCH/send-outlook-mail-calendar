@@ -177,67 +177,17 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Convert times to UTC format for iCalendar
-      const startTime = calendarEvent.start || new Date().toISOString()
-      const endTime = calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      // Generate iCalendar attachment
+      const calendarInvite = generateCalendarInvite(calendarEvent)
       
-      // Format times for iCalendar (UTC format)
-      const formatICalTime = (dateString: string): string => {
-        const date = new Date(dateString)
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-      }
-      
-      // DISABLED - Calendar invitation generation
-      // Now using beautiful HTML templates instead
-      /*
-      // Generate MIME multipart email with calendar invite
-      const calendarParams: CalendarInvitationParams = {
-        fromEmail: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
-        toEmails: to,
-        ccEmails: cleanCC,
-        subject: subject,
-        attendeeNames: {},
-        ccAttendeeNames: {},
-        dtStart: formatICalTime(startTime),
-        dtEnd: formatICalTime(endTime)
-      }
-
-      // Map attendee names from calendar event
-      if (calendarEvent.attendees) {
-        calendarEvent.attendees.forEach((attendee: any) => {
-          if (attendee.email && attendee.name) {
-            if (attendee.role === 'REQ-PARTICIPANT') {
-              calendarParams.attendeeNames[attendee.email] = attendee.name
-            } else if (attendee.role === 'OPT-PARTICIPANT') {
-              calendarParams.ccAttendeeNames[attendee.email] = attendee.name
-            }
-          }
-        })
-      }
-
-      // DISABLED - Calendar invitation generation
-      // Now using beautiful HTML templates instead
-      /*
-      // Generate complete MIME email
-      const mimeEmail = generateCalendarInvitationEmail(calendarParams)
-      
-      // Debug: Log MIME email details
-      console.log('=== Calendar Invite Debug ===')
-      console.log('Calendar event provided:', !!calendarEvent)
-      console.log('MIME email length:', mimeEmail.length, 'characters')
-      console.log('Contains iCalendar:', mimeEmail.includes('BEGIN:VCALENDAR'))
-      console.log('Contains METHOD:REQUEST:', mimeEmail.includes('METHOD:REQUEST'))
-      console.log('MIME preview:', mimeEmail.substring(0, 200) + '...')
-      
-      // Use raw MIME email with nodemailer
-      // Convert to Buffer for proper MIME handling
-      mailOptions.raw = Buffer.from(mimeEmail, 'utf8')
-      // Clear content types when using raw, but keep recipient info
-      delete mailOptions.html
-      delete mailOptions.text
-      // Keep to, cc, from, and subject for nodemailer validation
-      // The raw MIME will override the content but nodemailer needs these fields
-      */
+      // Add calendar attachment to email
+      mailOptions.attachments = [
+        {
+          filename: calendarInvite.filename,
+          content: calendarInvite.content,
+          contentType: calendarInvite.contentType
+        }
+      ]
     }
 
     const info = await transporter.sendMail(mailOptions)
