@@ -400,9 +400,12 @@ export default function SendEmailPage() {
 
     setSending(true)
     try {
-      // Add calendar time table to email body if calendar event exists
+      // Use the beautiful HTML template for Device DR meetings
       let emailBody = formData.body
-      if (formData.calendarEvent) {
+      if (formData.calendarEvent && formData.calendarEvent.summary.includes('Device DR Meeting')) {
+        emailBody = generateDeviceDRMeetingHTML(formData.calendarEvent)
+      } else if (formData.calendarEvent) {
+        // Fallback for other calendar events
         const timeTable = `
 <br><br>
 <div style="margin-top: 16px; padding: 12px; background-color: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px;">
@@ -480,9 +483,12 @@ export default function SendEmailPage() {
 
     setSending(true)
     try {
-      // Add calendar time table to email body if calendar event exists
+      // Use the beautiful HTML template for Device DR meetings
       let emailBody = formData.body
-      if (formData.calendarEvent) {
+      if (formData.calendarEvent && formData.calendarEvent.summary.includes('Device DR Meeting')) {
+        emailBody = generateDeviceDRMeetingHTML(formData.calendarEvent)
+      } else if (formData.calendarEvent) {
+        // Fallback for other calendar events
         const timeTable = `
 <br><br>
 <div style="margin-top: 16px; padding: 12px; background-color: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px;">
