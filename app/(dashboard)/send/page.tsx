@@ -56,6 +56,8 @@ export default function SendEmailPage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' })
   const [showCalendarDialog, setShowCalendarDialog] = useState(false)
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancellationReason, setCancellationReason] = useState('')
 
   // Load data on component mount
   useEffect(() => {
@@ -833,16 +835,23 @@ Tel: 0-3846-9700 #7650`,
     setShowCalendarDialog(false)
   }
 
+  const openCancelDialog = () => {
+    setShowCancelDialog(true)
+    setCancellationReason('')
+  }
+
   const cancelCalendarEvent = () => {
     if (!formData.calendarEvent) return
-    
+
     const cancelledEvent = createCancelledCalendarEvent(formData.calendarEvent)
     setFormData(prev => ({
       ...prev,
       calendarEvent: cancelledEvent,
       subject: `CANCELLED: ${prev.subject}`,
-      body: generateCancellationEmailHTML(cancelledEvent)
+      body: generateCancellationEmailHTML(cancelledEvent, cancellationReason)
     }))
+    setShowCancelDialog(false)
+    setCancellationReason('')
     setStatus({ type: 'success', message: 'Calendar event marked for cancellation. Email content updated.' })
   }
 
@@ -1187,10 +1196,11 @@ Tel: 0-3846-9700 #7650`,
                         >
                           Edit
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={cancelCalendarEvent}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={openCancelDialog}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           Cancel Event
                         </Button>
@@ -1599,6 +1609,30 @@ Tel: 0-3846-9700 #7650`,
           </CardContent>
         </Card>
 
+        {/* Cancel Meeting Notice */}
+        {formData.calendarEvent?.method === 'CANCEL' && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-red-700">
+                  <X className="w-5 h-5" />
+                  <span className="font-medium">Meeting Cancellation Ready</span>
+                </div>
+                <p className="text-sm text-red-600">
+                  The meeting has been marked for cancellation. The email content and .ics cancellation file have been prepared.
+                  Click "Send Cancellation Email" below to notify all participants.
+                </p>
+                {cancellationReason && (
+                  <div className="p-3 bg-red-100 border border-red-200 rounded">
+                    <p className="text-sm font-medium text-red-700">Cancellation Reason:</p>
+                    <p className="text-sm text-red-600">{cancellationReason}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Actions */}
         <Card>
           <CardContent className="pt-6">
@@ -1651,6 +1685,71 @@ Tel: 0-3846-9700 #7650`,
             </div>
           </CardContent>
         </Card>
+
+        {/* Cancel Meeting Dialog */}
+        <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <X className="w-5 h-5" />
+                Cancel Meeting
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">
+                  <strong>⚠️ Warning:</strong> This will cancel the meeting and send cancellation emails to all participants with a .ics cancellation file.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Cancellation Reason (Optional)</label>
+                <Textarea
+                  placeholder="Enter reason for cancelling this meeting (e.g., 'Schedule conflict', 'Emergency', etc.)"
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              {formData.calendarEvent && (
+                <div className="p-3 bg-gray-50 rounded-lg border">
+                  <div className="text-sm">
+                    <div className="font-medium text-gray-900 mb-1">
+                      {formData.calendarEvent.summary || 'Untitled Event'}
+                    </div>
+                    <div className="text-gray-600">
+                      {new Date(formData.calendarEvent.start).toLocaleString('en-US', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
+                    </div>
+                    <div className="text-gray-500 text-xs mt-1">
+                      {formData.to.length + (formData.cc?.length || 0)} participants will be notified
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowCancelDialog(false)}>
+                  Keep Meeting
+                </Button>
+                <Button
+                  onClick={cancelCalendarEvent}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Cancel Meeting
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
