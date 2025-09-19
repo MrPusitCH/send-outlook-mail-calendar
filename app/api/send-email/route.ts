@@ -62,122 +62,6 @@ function logEmail(to: string | string[], subject: string, status: 'SUCCESS' | 'F
   })
 }
 
-/**
- * Generate .ics calendar content for RSVP invitations with enhanced time table support
- */
-function generateICSContent(params: {
-  uid: string
-  dtStart: string
-  dtEnd: string
-  summary: string
-  description: string
-  location: string
-  organizer: string
-  attendees: string[]
-  method?: string
-  sequence?: number
-}): string {
-  const lines: string[] = []
-
-  const method = params.method || 'REQUEST'
-
-  // iCalendar header
-  lines.push('BEGIN:VCALENDAR')
-  lines.push('VERSION:2.0')
-  lines.push('PRODID:-//DEDE_SYSTEM//Calendar Invite//EN')
-  lines.push(`METHOD:${method}`)
-  lines.push('CALSCALE:GREGORIAN')
-
-  // Timezone definition for Asia/Bangkok (helps with time table display)
-  lines.push('BEGIN:VTIMEZONE')
-  lines.push('TZID:Asia/Bangkok')
-  lines.push('BEGIN:STANDARD')
-  lines.push('DTSTART:19700101T000000')
-  lines.push('TZOFFSETFROM:+0700')
-  lines.push('TZOFFSETTO:+0700')
-  lines.push('TZNAME:+07')
-  lines.push('END:STANDARD')
-  lines.push('END:VTIMEZONE')
-
-  // Event
-  lines.push('BEGIN:VEVENT')
-  lines.push(`UID:${params.uid}`)
-  lines.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`)
-
-  // Use timezone-aware time format for better calendar display
-  const localStartTime = params.dtStart.replace('Z', '')
-  const localEndTime = params.dtEnd.replace('Z', '')
-  lines.push(`DTSTART;TZID=Asia/Bangkok:${localStartTime}`)
-  lines.push(`DTEND;TZID=Asia/Bangkok:${localEndTime}`)
-
-  lines.push(`SUMMARY:${escapeICalText(params.summary)}`)
-
-  if (params.description) {
-    lines.push(`DESCRIPTION:${escapeICalText(params.description)}`)
-  }
-
-  if (params.location) {
-    lines.push(`LOCATION:${escapeICalText(params.location)}`)
-  }
-
-  // Organizer with display name
-  lines.push(`ORGANIZER;CN=DEDE_SYSTEM:mailto:${params.organizer}`)
-
-  // Add attendees with RSVP and proper display names
-  params.attendees.forEach(email => {
-    const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    const partstat = method === 'CANCEL' ? 'NEEDS-ACTION' : 'NEEDS-ACTION'
-    lines.push(`ATTENDEE;CN=${escapeICalText(name)};RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=${partstat}:mailto:${email}`)
-  })
-
-  // For cancellations, also add the organizer as an attendee to ensure proper cancellation
-  if (method === 'CANCEL' && !params.attendees.includes(params.organizer)) {
-    const organizerName = params.organizer.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    lines.push(`ATTENDEE;CN=${escapeICalText(organizerName)};RSVP=FALSE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:${params.organizer}`)
-  }
-
-  // Additional properties for better calendar integration
-  if (method === 'CANCEL') {
-    lines.push('STATUS:CANCELLED')
-  } else {
-    lines.push('STATUS:CONFIRMED')
-  }
-
-  lines.push(`SEQUENCE:${params.sequence || 0}`)
-  lines.push('TRANSP:OPAQUE')
-  lines.push('CLASS:PUBLIC')
-
-  // Request delivery and read receipts (only for invitations, not cancellations)
-  if (method !== 'CANCEL') {
-    lines.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY')
-    lines.push('X-MICROSOFT-CDO-IMPORTANCE:1')
-    lines.push('X-MICROSOFT-DISALLOW-COUNTER:FALSE')
-
-    // Reminder alarm (15 minutes before) - only for invitations
-    lines.push('BEGIN:VALARM')
-    lines.push('TRIGGER:-PT15M')
-    lines.push('ACTION:DISPLAY')
-    lines.push(`DESCRIPTION:Reminder: ${escapeICalText(params.summary)}`)
-    lines.push('END:VALARM')
-  }
-
-  lines.push('END:VEVENT')
-  lines.push('END:VCALENDAR')
-
-  return lines.join('\r\n')
-}
-
-/**
- * Escape text for iCalendar format (RFC5545)
- */
-function escapeICalText(text: string): string {
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '')
-}
 
 function normalizeEmails(value: unknown): string[] {
   if (!value) {
@@ -306,30 +190,22 @@ export async function POST(request: NextRequest) {
         'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
       }
 
-      // For cancellations, use multipart/alternative layout as required by Outlook
+      // For cancellations, use proper MIME structure
       if (calendarEvent.method === 'CANCEL') {
-        // Set multipart/alternative content type
-        mailOptions.headers['Content-Type'] = 'multipart/alternative; boundary="----=_Part_Calendar_Cancel"'
+        // Use Nodemailer's built-in multipart support
+        mailOptions.alternatives = [
+          {
+            contentType: 'text/plain; charset=UTF-8',
+            content: emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
+          },
+          {
+            contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
+            content: calendarInvite.content
+          }
+        ]
         
-        // Create multipart body with text and calendar parts
-        const textPart = emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
-        const calendarPart = calendarInvite.content
-        
-        mailOptions.text = `------=_Part_Calendar_Cancel
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-${textPart}
-
-------=_Part_Calendar_Cancel
-Content-Type: text/calendar; method=CANCEL; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-${calendarPart}
-
-------=_Part_Calendar_Cancel--`
-
-        // Remove HTML body for multipart
+        // Remove individual text/html properties when using alternatives
+        delete mailOptions.text
         delete mailOptions.html
       }
 
@@ -339,7 +215,7 @@ ${calendarPart}
           filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
           content: calendarInvite.content,
           contentType: calendarInvite.contentType,
-          contentDisposition: 'attachment'
+          contentDisposition: 'attachment' as const
         }
       ]
     }
