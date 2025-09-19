@@ -74,14 +74,17 @@ function generateICSContent(params: {
   location: string
   organizer: string
   attendees: string[]
+  method?: string
 }): string {
   const lines: string[] = []
+
+  const method = params.method || 'REQUEST'
 
   // iCalendar header
   lines.push('BEGIN:VCALENDAR')
   lines.push('VERSION:2.0')
   lines.push('PRODID:-//DEDE_SYSTEM//Calendar Invite//EN')
-  lines.push('METHOD:REQUEST')
+  lines.push(`METHOD:${method}`)
   lines.push('CALSCALE:GREGORIAN')
 
   // Timezone definition for Asia/Bangkok (helps with time table display)
@@ -126,22 +129,29 @@ function generateICSContent(params: {
   })
 
   // Additional properties for better calendar integration
-  lines.push('STATUS:CONFIRMED')
+  if (method === 'CANCEL') {
+    lines.push('STATUS:CANCELLED')
+  } else {
+    lines.push('STATUS:CONFIRMED')
+  }
+
   lines.push('SEQUENCE:0')
   lines.push('TRANSP:OPAQUE')
   lines.push('CLASS:PUBLIC')
 
-  // Request delivery and read receipts
-  lines.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY')
-  lines.push('X-MICROSOFT-CDO-IMPORTANCE:1')
-  lines.push('X-MICROSOFT-DISALLOW-COUNTER:FALSE')
+  // Request delivery and read receipts (only for invitations, not cancellations)
+  if (method !== 'CANCEL') {
+    lines.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY')
+    lines.push('X-MICROSOFT-CDO-IMPORTANCE:1')
+    lines.push('X-MICROSOFT-DISALLOW-COUNTER:FALSE')
 
-  // Reminder alarm (15 minutes before)
-  lines.push('BEGIN:VALARM')
-  lines.push('TRIGGER:-PT15M')
-  lines.push('ACTION:DISPLAY')
-  lines.push(`DESCRIPTION:Reminder: ${escapeICalText(params.summary)}`)
-  lines.push('END:VALARM')
+    // Reminder alarm (15 minutes before) - only for invitations
+    lines.push('BEGIN:VALARM')
+    lines.push('TRIGGER:-PT15M')
+    lines.push('ACTION:DISPLAY')
+    lines.push(`DESCRIPTION:Reminder: ${escapeICalText(params.summary)}`)
+    lines.push('END:VALARM')
+  }
 
   lines.push('END:VEVENT')
   lines.push('END:VCALENDAR')
@@ -276,15 +286,37 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Generate iCalendar attachment
-      const calendarInvite = generateCalendarInvite(calendarEvent)
-      
-      // Add calendar attachment to email
+      // Convert times to UTC format for iCalendar
+      const startTime = calendarEvent.start || new Date().toISOString()
+      const endTime = calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString()
+
+      // Format times for iCalendar (local timezone format for Asia/Bangkok)
+      const formatICalTime = (dateString: string): string => {
+        const date = new Date(dateString)
+        // Convert to Asia/Bangkok timezone (+7 hours from UTC)
+        const bangkokTime = new Date(date.getTime() + (7 * 60 * 60 * 1000))
+        return bangkokTime.toISOString().replace(/[-:]/g, '').split('.')[0]
+      }
+
+      // Generate .ics calendar invite attachment
+      const icsContent = generateICSContent({
+        uid: `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
+        dtStart: formatICalTime(startTime),
+        dtEnd: formatICalTime(endTime),
+        summary: calendarEvent.summary || subject,
+        description: calendarEvent.description || emailBody.replace(/<[^>]*>/g, ''),
+        location: calendarEvent.location || '',
+        organizer: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
+        attendees: [...to, ...cleanCC],
+        method: calendarEvent.method || 'REQUEST'
+      })
+
+      // Add .ics file as attachment
       mailOptions.attachments = [
         {
-          filename: calendarInvite.filename,
-          content: calendarInvite.content,
-          contentType: calendarInvite.contentType
+          filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
+          content: icsContent,
+          contentType: 'text/calendar; method=' + (calendarEvent.method || 'REQUEST') + '; charset=UTF-8'
         }
       ]
     }
