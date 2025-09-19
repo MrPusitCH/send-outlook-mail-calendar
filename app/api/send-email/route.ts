@@ -193,35 +193,40 @@ export async function POST(request: NextRequest) {
       // Generate .ics calendar invite using the enhanced calendar library
       const calendarInvite = generateCalendarInvite(calendarEvent)
 
-      // Set up proper multipart/alternative structure
-      const method = calendarEvent.method === 'CANCEL' ? 'CANCEL' : 'REQUEST'
+       // Use Nodemailer's built-in calendar support for better Outlook compatibility
+       const method = calendarEvent.method === 'CANCEL' ? 'CANCEL' : 'REQUEST'
+       
+       // Set up calendar event for Nodemailer
+       mailOptions.icalEvent = {
+         content: calendarInvite.content,
+         method: method,
+         encoding: 'utf8'
+       }
 
-      // Use proper multipart/alternative structure for calendar invites
-      mailOptions.alternatives = [
-        {
-          contentType: 'text/plain; charset=UTF-8',
-          content: emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
-        },
-        {
-          contentType: `text/calendar; method=${method}; charset=UTF-8`,
-          content: calendarInvite.content,
-          headers: {
-            'Content-Class': 'urn:content-classes:calendarmessage'
-          }
-        }
-      ]
+       // For calendar invites, we still need alternatives for the email body
+       if (calendarEvent.method === 'CANCEL') {
+         // For cancellations, use text/plain
+         mailOptions.text = emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
+         delete mailOptions.html
+       } else {
+         // For regular invitations, use HTML
+         mailOptions.html = emailBody
+         delete mailOptions.text
+       }
 
       // Add calendar headers for proper Outlook recognition
       mailOptions.headers = {
         'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
+        'Content-Class': 'urn:content-classes:calendarmessage',
         'X-MICROSOFT-CDO-BUSYSTATUS': calendarEvent.method === 'CANCEL' ? 'FREE' : 'BUSY',
         'X-MICROSOFT-CDO-IMPORTANCE': '1',
-        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE',
+        'X-MS-HAS-ATTACH': 'TRUE',
+        'X-MS-OLK-CONFTYPE': '0',
+        'X-MS-OLK-SENDER': fromEmail,
+        'X-MS-OLK-AUTOFORWARD': 'FALSE',
+        'X-MS-OLK-AUTOREPLY': 'FALSE'
       }
-
-      // Remove individual text/html properties when using alternatives
-      delete mailOptions.text
-      delete mailOptions.html
 
       // Add .ics file as attachment for better compatibility
       mailOptions.attachments = [
