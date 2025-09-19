@@ -90,9 +90,8 @@ function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
     parts.push(`ROLE=${attendee.role}`)
   }
 
-  // RSVP - required for Outlook
-  const rsvp = attendee.role === 'OPT-PARTICIPANT' ? 'FALSE' : 'TRUE'
-  parts.push(`RSVP=${rsvp}`)
+  // RSVP - set TRUE for both required and optional participants so they can respond
+  parts.push('RSVP=TRUE')
 
   // PARTSTAT - for cancellations, keep as NEEDS-ACTION
   if (attendee.status) {
@@ -124,12 +123,12 @@ function foldLine(line: string): string {
 
 /**
  * Generate iCalendar content for an event
- * Enhanced for Outlook compatibility with proper CANCEL handling
+ * Enhanced for Outlook compatibility with proper CANCEL handling and CRLF line endings
  */
 export function generateICalContent(event: CalendarEvent): string {
   const lines: string[] = []
 
-  // Header - Outlook-safe format
+  // Header - RFC 5545 compliant format
   lines.push('BEGIN:VCALENDAR')
   lines.push('VERSION:2.0')
   lines.push('PRODID:-//DEDE_SYSTEM//Email Calendar//EN')
@@ -139,21 +138,19 @@ export function generateICalContent(event: CalendarEvent): string {
   // Event
   lines.push('BEGIN:VEVENT')
 
-  // UID - MUST be exact same as original for cancellations
-  if (event.uid) {
-    lines.push(`UID:${event.uid}`)
-  }
+  // UID - REQUIRED field, must be exact same as original for cancellations
+  const uid = event.uid || generateEventUID()
+  lines.push(`UID:${uid}`)
 
-  // SEQUENCE - MUST be incremented for cancellations (original: 0, cancel: 1)
-  if (event.sequence !== undefined) {
-    lines.push(`SEQUENCE:${event.sequence}`)
-  }
+  // SEQUENCE - REQUIRED for updates/cancellations (original: 0, cancel: 1)
+  const sequence = event.sequence !== undefined ? event.sequence : 0
+  lines.push(`SEQUENCE:${sequence}`)
 
-  // DTSTAMP - Current timestamp in UTC
+  // DTSTAMP - REQUIRED field, current timestamp in UTC
   const now = new Date()
   lines.push(`DTSTAMP:${now.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`)
 
-  // Date/time - MUST match original invite exactly for cancellations
+  // DTSTART/DTEND - REQUIRED fields, must match original invite exactly for cancellations
   if (event.start && event.end) {
     // For Outlook compatibility, prefer UTC with Z suffix
     const startUTC = new Date(event.start).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
@@ -162,51 +159,61 @@ export function generateICalContent(event: CalendarEvent): string {
     lines.push(`DTEND:${endUTC}`)
   }
 
-  // Summary - for cancellations, append "(Cancelled)" to make it clear
-  if (event.summary) {
-    const summary = event.method === 'CANCEL' 
-      ? `${event.summary} (Cancelled)`
-      : event.summary
-    lines.push(foldLine(`SUMMARY:${escapeICalText(summary)}`))
-  }
+  // SUMMARY - REQUIRED field, for cancellations, append "(Cancelled)" to make it clear
+  const summary = event.summary || 'Meeting'
+  const displaySummary = event.method === 'CANCEL'
+    ? `${summary} (Cancelled)`
+    : summary
+  lines.push(foldLine(`SUMMARY:${escapeICalText(displaySummary)}`))
 
-  // Description - for cancellations, add cancellation notice
+  // DESCRIPTION - Optional but helpful
   if (event.description) {
-    const description = event.method === 'CANCEL' 
+    const description = event.method === 'CANCEL'
       ? `This meeting has been cancelled.\n\n${event.description}`
       : event.description
     lines.push(foldLine(`DESCRIPTION:${escapeICalText(description)}`))
   }
 
+  // LOCATION - Optional
   if (event.location) {
     lines.push(foldLine(`LOCATION:${escapeICalText(event.location)}`))
   }
 
-  // Organizer - MUST match original event organizer for cancellations to work
+  // ORGANIZER - REQUIRED field, must match SMTP From address for proper recognition
   // Format: ORGANIZER;CN=Name:mailto:email@domain.com
   if (event.organizer?.email) {
     const organizerName = event.organizer.name || 'DEDE_SYSTEM'
     lines.push(foldLine(`ORGANIZER;CN=${escapeICalText(organizerName)}:mailto:${event.organizer.email}`))
+  } else {
+    // Fallback to environment SMTP From address
+    const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+    const fromName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
+    lines.push(foldLine(`ORGANIZER;CN=${escapeICalText(fromName)}:mailto:${fromEmail}`))
   }
 
-  // Attendees - MUST include all original attendees for cancellations
-  if (event.attendees) {
+  // ATTENDEE - At least one REQUIRED for proper calendar recognition
+  if (event.attendees && event.attendees.length > 0) {
     event.attendees.forEach(attendee => {
       if (attendee.email) {
         lines.push(foldLine(formatAttendee(attendee)))
       }
     })
+  } else {
+    // If no attendees specified, add organizer as attendee for compatibility
+    const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+    const fromName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
+    lines.push(foldLine(`ATTENDEE;CN=${escapeICalText(fromName)};ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:${fromEmail}`))
   }
 
-  // Status - Critical for cancellations
-  if (event.status) {
-    lines.push(`STATUS:${event.status}`)
-  }
+  // STATUS - Important for cancellations
+  const status = event.status || 'CONFIRMED'
+  lines.push(`STATUS:${status}`)
 
   // End event
   lines.push('END:VEVENT')
   lines.push('END:VCALENDAR')
 
+  // Use CRLF (\r\n) line endings as required by RFC 5545
   return lines.join('\r\n')
 }
 

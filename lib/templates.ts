@@ -65,64 +65,64 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                 </h3>
                 
                 <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
-                    <div style="display: table; width: 100%;">
-                        <div style="display: table-row;">
-                            <div style="display: table-cell; padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                    <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 🏷️ Device Group:
-                            </div>
-                            <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            </td>
+                            <td style="padding: 8px 0; color: #374151;">
                                 {deviceGroup}
-                            </div>
-                        </div>
-                        <div style="display: table-row;">
-                            <div style="display: table-cell; padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 📱 Applicable Model:
-                            </div>
-                            <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            </td>
+                            <td style="padding: 8px 0; color: #374151;">
                                 {applicableModel}
-                            </div>
-                        </div>
-                        <div style="display: table-row;">
-                            <div style="display: table-cell; padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 🎯 DR (Stage):
-                            </div>
-                            <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            </td>
+                            <td style="padding: 8px 0; color: #374151;">
                                 {drStage}
-                            </div>
-                        </div>
-                        <div style="display: table-row;">
-                            <div style="display: table-cell; padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 ⏰ Time:
-                            </div>
-                            <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            </td>
+                            <td style="padding: 8px 0; color: #374151;">
                                 {time}
-                            </div>
-                        </div>
-                        <div style="display: table-row;">
-                            <div style="display: table-cell; padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 📍 Place:
-                            </div>
-                            <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            </td>
+                            <td style="padding: 8px 0; color: #374151;">
                                 {place}
-                            </div>
-                        </div>
-                        <div style="display: table-row;">
-                            <div style="display: table-cell; padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👨‍💼 Chairman:
-                            </div>
-                            <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            </td>
+                            <td style="padding: 8px 0; color: #374151;">
                                 {chairman}
-                            </div>
-                        </div>
-                        <div style="display: table-row;">
-                            <div style="display: table-cell; padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👥 Participant:
-                            </div>
-                            <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            </td>
+                            <td style="padding: 8px 0; color: #374151;">
                                 {participant}
-                            </div>
-                        </div>
-                    </div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
             </div>
 
@@ -196,48 +196,48 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
 
             <!-- Meeting Info Card -->
             <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
-                <div style="display: table; width: 100%;">
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📋 Topic:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {topic}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📅 Date:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {date}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             ⏰ Time:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {time}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📍 Location:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {location}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             👤 Organizer:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {organizer}
-                        </div>
-                    </div>
-                </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <!-- Message -->
@@ -362,40 +362,40 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
 
             <!-- Meeting Info Card -->
             <div style="background: #FEF2F2; border-radius: 8px; padding: 20px; border: 1px solid #FECACA; margin-bottom: 25px;">
-                <div style="display: table; width: 100%;">
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📋 Topic:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {topic}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📅 Date:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {date}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             ⏰ Time:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {time}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📍 Location:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {location}
-                        </div>
-                    </div>
-                </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <!-- Call to Action -->
@@ -466,40 +466,40 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
 
             <!-- Meeting Info Card -->
             <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
-                <div style="display: table; width: 100%;">
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📋 Topic:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {topic}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📅 Date:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {date}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             ⏰ Time:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {time}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📍 Location:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             {location}
-                        </div>
-                    </div>
-                </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <!-- Cancellation Reason -->
@@ -646,40 +646,40 @@ export function generateCancellationEmailHTML(event: any, reason?: string): stri
 
             <!-- Meeting Info Card -->
             <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
-                <div style="display: table; width: 100%;">
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📋 Topic:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             ${event.summary || 'Untitled Event'}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📅 Date:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             ${meetingDate} (${meetingDay})
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             ⏰ Time:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             ${meetingTime}
-                        </div>
-                    </div>
-                    <div style="display: table-row;">
-                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📍 Location:
-                        </div>
-                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                        </td>
+                        <td style="padding: 8px 0; color: #374151;">
                             ${event.location || 'TBD'}
-                        </div>
-                    </div>
-                </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             ${reason ? `

@@ -91,15 +91,26 @@ export async function POST(request: NextRequest) {
     transporter = createTransporter()
     await transporter.verify()
 
-    // Ensure From header matches organizer for Outlook compatibility
+    // Use proper multipart/alternative structure like in send-email API
     const mailOptions = {
       from: `${organizerName} <${organizerEmail}>`,
       to: attendees.join(', '),
       subject: `CANCELLED: ${summary}`,
-      html: emailBody,
+      alternatives: [
+        {
+          contentType: 'text/plain; charset=UTF-8',
+          content: emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
+        },
+        {
+          contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
+          content: calendarInvite.content,
+          headers: {
+            'Content-Class': 'urn:content-classes:calendarmessage'
+          }
+        }
+      ],
       headers: {
         'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
-        'Content-Class': 'urn:content-classes:calendarmessage',
         'X-MICROSOFT-CDO-BUSYSTATUS': 'FREE',
         'X-MICROSOFT-CDO-IMPORTANCE': '1',
         'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'

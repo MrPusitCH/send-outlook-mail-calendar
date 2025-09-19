@@ -178,52 +178,50 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
+      // Ensure organizer matches SMTP From address for proper recognition
+      const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+      const fromName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
+
+      // Set organizer to match SMTP From if not already set
+      if (!calendarEvent.organizer || calendarEvent.organizer.email !== fromEmail) {
+        calendarEvent.organizer = {
+          name: fromName,
+          email: fromEmail
+        }
+      }
+
       // Generate .ics calendar invite using the enhanced calendar library
       const calendarInvite = generateCalendarInvite(calendarEvent)
+
+      // Set up proper multipart/alternative structure
+      const method = calendarEvent.method === 'CANCEL' ? 'CANCEL' : 'REQUEST'
+
+      // Use proper multipart/alternative structure for calendar invites
+      mailOptions.alternatives = [
+        {
+          contentType: 'text/plain; charset=UTF-8',
+          content: emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
+        },
+        {
+          contentType: `text/calendar; method=${method}; charset=UTF-8`,
+          content: calendarInvite.content,
+          headers: {
+            'Content-Class': 'urn:content-classes:calendarmessage'
+          }
+        }
+      ]
 
       // Add calendar headers for proper Outlook recognition
       mailOptions.headers = {
         'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
-        'Content-Class': 'urn:content-classes:calendarmessage',
         'X-MICROSOFT-CDO-BUSYSTATUS': calendarEvent.method === 'CANCEL' ? 'FREE' : 'BUSY',
         'X-MICROSOFT-CDO-IMPORTANCE': '1',
         'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
       }
 
-      // Use proper MIME structure for all calendar events
-      if (calendarEvent.method === 'CANCEL') {
-        // For cancellations, use multipart/alternative with text and calendar
-        mailOptions.alternatives = [
-          {
-            contentType: 'text/plain; charset=UTF-8',
-            content: emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
-          },
-          {
-            contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
-            content: calendarInvite.content
-          }
-        ]
-        
-        // Remove individual text/html properties when using alternatives
-        delete mailOptions.text
-        delete mailOptions.html
-      } else {
-        // For regular invitations, use multipart/alternative with HTML and calendar
-        mailOptions.alternatives = [
-          {
-            contentType: 'text/html; charset=UTF-8',
-            content: emailBody
-          },
-          {
-            contentType: 'text/calendar; method=REQUEST; charset=UTF-8',
-            content: calendarInvite.content
-          }
-        ]
-        
-        // Remove individual text/html properties when using alternatives
-        delete mailOptions.text
-        delete mailOptions.html
-      }
+      // Remove individual text/html properties when using alternatives
+      delete mailOptions.text
+      delete mailOptions.html
 
       // Add .ics file as attachment for better compatibility
       mailOptions.attachments = [

@@ -39,5 +39,8 @@
     "eslint": "^8",
     "eslint-config-next": "14.0.4",
     "tsx": "^4.6.2"
+  },
+  "optionalDependencies": {
+    "@next/swc-linux-x64-musl": "^15.5.3"
   }
 }
