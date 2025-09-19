@@ -62,6 +62,105 @@ function logEmail(to: string | string[], subject: string, status: 'SUCCESS' | 'F
   })
 }
 
+/**
+ * Generate .ics calendar content for RSVP invitations with enhanced time table support
+ */
+function generateICSContent(params: {
+  uid: string
+  dtStart: string
+  dtEnd: string
+  summary: string
+  description: string
+  location: string
+  organizer: string
+  attendees: string[]
+}): string {
+  const lines: string[] = []
+
+  // iCalendar header
+  lines.push('BEGIN:VCALENDAR')
+  lines.push('VERSION:2.0')
+  lines.push('PRODID:-//DEDE_SYSTEM//Calendar Invite//EN')
+  lines.push('METHOD:REQUEST')
+  lines.push('CALSCALE:GREGORIAN')
+
+  // Timezone definition for Asia/Bangkok (helps with time table display)
+  lines.push('BEGIN:VTIMEZONE')
+  lines.push('TZID:Asia/Bangkok')
+  lines.push('BEGIN:STANDARD')
+  lines.push('DTSTART:19700101T000000')
+  lines.push('TZOFFSETFROM:+0700')
+  lines.push('TZOFFSETTO:+0700')
+  lines.push('TZNAME:+07')
+  lines.push('END:STANDARD')
+  lines.push('END:VTIMEZONE')
+
+  // Event
+  lines.push('BEGIN:VEVENT')
+  lines.push(`UID:${params.uid}`)
+  lines.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`)
+
+  // Use timezone-aware time format for better calendar display
+  const localStartTime = params.dtStart.replace('Z', '')
+  const localEndTime = params.dtEnd.replace('Z', '')
+  lines.push(`DTSTART;TZID=Asia/Bangkok:${localStartTime}`)
+  lines.push(`DTEND;TZID=Asia/Bangkok:${localEndTime}`)
+
+  lines.push(`SUMMARY:${escapeICalText(params.summary)}`)
+
+  if (params.description) {
+    lines.push(`DESCRIPTION:${escapeICalText(params.description)}`)
+  }
+
+  if (params.location) {
+    lines.push(`LOCATION:${escapeICalText(params.location)}`)
+  }
+
+  // Organizer with display name
+  lines.push(`ORGANIZER;CN=DEDE_SYSTEM:mailto:${params.organizer}`)
+
+  // Add attendees with RSVP and proper display names
+  params.attendees.forEach(email => {
+    const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    lines.push(`ATTENDEE;CN=${escapeICalText(name)};RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:${email}`)
+  })
+
+  // Additional properties for better calendar integration
+  lines.push('STATUS:CONFIRMED')
+  lines.push('SEQUENCE:0')
+  lines.push('TRANSP:OPAQUE')
+  lines.push('CLASS:PUBLIC')
+
+  // Request delivery and read receipts
+  lines.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY')
+  lines.push('X-MICROSOFT-CDO-IMPORTANCE:1')
+  lines.push('X-MICROSOFT-DISALLOW-COUNTER:FALSE')
+
+  // Reminder alarm (15 minutes before)
+  lines.push('BEGIN:VALARM')
+  lines.push('TRIGGER:-PT15M')
+  lines.push('ACTION:DISPLAY')
+  lines.push(`DESCRIPTION:Reminder: ${escapeICalText(params.summary)}`)
+  lines.push('END:VALARM')
+
+  lines.push('END:VEVENT')
+  lines.push('END:VCALENDAR')
+
+  return lines.join('\r\n')
+}
+
+/**
+ * Escape text for iCalendar format (RFC5545)
+ */
+function escapeICalText(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '')
+}
+
 function normalizeEmails(value: unknown): string[] {
   if (!value) {
     return []
@@ -180,64 +279,35 @@ export async function POST(request: NextRequest) {
       // Convert times to UTC format for iCalendar
       const startTime = calendarEvent.start || new Date().toISOString()
       const endTime = calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString()
-      
-      // Format times for iCalendar (UTC format)
+
+      // Format times for iCalendar (local timezone format for Asia/Bangkok)
       const formatICalTime = (dateString: string): string => {
         const date = new Date(dateString)
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+        // Convert to Asia/Bangkok timezone (+7 hours from UTC)
+        const bangkokTime = new Date(date.getTime() + (7 * 60 * 60 * 1000))
+        return bangkokTime.toISOString().replace(/[-:]/g, '').split('.')[0]
       }
-      
-      // DISABLED - Calendar invitation generation
-      // Now using beautiful HTML templates instead
-      /*
-      // Generate MIME multipart email with calendar invite
-      const calendarParams: CalendarInvitationParams = {
-        fromEmail: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
-        toEmails: to,
-        ccEmails: cleanCC,
-        subject: subject,
-        attendeeNames: {},
-        ccAttendeeNames: {},
+
+      // Generate .ics calendar invite attachment
+      const icsContent = generateICSContent({
+        uid: `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
         dtStart: formatICalTime(startTime),
-        dtEnd: formatICalTime(endTime)
-      }
+        dtEnd: formatICalTime(endTime),
+        summary: calendarEvent.summary || subject,
+        description: calendarEvent.description || emailBody.replace(/<[^>]*>/g, ''),
+        location: calendarEvent.location || '',
+        organizer: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
+        attendees: [...to, ...cleanCC]
+      })
 
-      // Map attendee names from calendar event
-      if (calendarEvent.attendees) {
-        calendarEvent.attendees.forEach((attendee: any) => {
-          if (attendee.email && attendee.name) {
-            if (attendee.role === 'REQ-PARTICIPANT') {
-              calendarParams.attendeeNames[attendee.email] = attendee.name
-            } else if (attendee.role === 'OPT-PARTICIPANT') {
-              calendarParams.ccAttendeeNames[attendee.email] = attendee.name
-            }
-          }
-        })
-      }
-
-      // DISABLED - Calendar invitation generation
-      // Now using beautiful HTML templates instead
-      /*
-      // Generate complete MIME email
-      const mimeEmail = generateCalendarInvitationEmail(calendarParams)
-      
-      // Debug: Log MIME email details
-      console.log('=== Calendar Invite Debug ===')
-      console.log('Calendar event provided:', !!calendarEvent)
-      console.log('MIME email length:', mimeEmail.length, 'characters')
-      console.log('Contains iCalendar:', mimeEmail.includes('BEGIN:VCALENDAR'))
-      console.log('Contains METHOD:REQUEST:', mimeEmail.includes('METHOD:REQUEST'))
-      console.log('MIME preview:', mimeEmail.substring(0, 200) + '...')
-      
-      // Use raw MIME email with nodemailer
-      // Convert to Buffer for proper MIME handling
-      mailOptions.raw = Buffer.from(mimeEmail, 'utf8')
-      // Clear content types when using raw, but keep recipient info
-      delete mailOptions.html
-      delete mailOptions.text
-      // Keep to, cc, from, and subject for nodemailer validation
-      // The raw MIME will override the content but nodemailer needs these fields
-      */
+      // Add .ics file as attachment
+      mailOptions.attachments = [
+        {
+          filename: 'invite.ics',
+          content: icsContent,
+          contentType: 'text/calendar; method=REQUEST; charset=UTF-8'
+        }
+      ]
     }
 
     const info = await transporter.sendMail(mailOptions)
