@@ -420,6 +420,127 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
 </html>`,
     isHtml: true,
     isSystem: true
+  },
+  {
+    id: 'meeting-cancellation',
+    name: 'Meeting Cancellation',
+    category: 'cancellation',
+    subject: 'CANCELLED: {topic}',
+    body: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Cancellation</title>
+</head>
+<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); padding: 25px; text-align: center;">
+            <h1 style="margin: 0; color: white; font-size: 22px; font-weight: 600;">
+                ❌ Meeting Cancelled
+            </h1>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 25px;">
+            
+            <!-- Greeting -->
+            <div style="margin-bottom: 20px;">
+                <p style="margin: 0; color: #0f172a; font-size: 16px;">
+                    Dear All,
+                </p>
+                <p style="margin: 10px 0 0 0; color: #0f172a; font-size: 16px;">
+                    I regret to inform you that the following meeting has been cancelled:
+                </p>
+            </div>
+
+            <!-- Cancellation Notice -->
+            <div style="background: #FEF2F2; border-radius: 8px; padding: 20px; border: 1px solid #FECACA; margin-bottom: 25px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
+                <p style="margin: 0; color: #DC2626; font-size: 18px; font-weight: 600;">
+                    MEETING CANCELLED
+                </p>
+            </div>
+
+            <!-- Meeting Info Card -->
+            <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
+                <div style="display: table; width: 100%;">
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            📋 Topic:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            {topic}
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            📅 Date:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            {date}
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            ⏰ Time:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            {time}
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            📍 Location:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            {location}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cancellation Reason -->
+            {reason && (
+              <div style="background: #FEF3C7; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #92400E; font-size: 14px; font-weight: 600;">
+                    📝 Reason for cancellation:
+                </p>
+                <p style="margin: 0; color: #92400E; font-size: 14px;">
+                    {reason}
+                </p>
+              </div>
+            )}
+
+            <!-- Next Steps -->
+            <div style="background: #F0F9FF; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #1E40AF; font-size: 14px; font-weight: 600;">
+                    ℹ️ What happens next:
+                </p>
+                <ul style="margin: 0; padding-left: 20px; color: #1E40AF; font-size: 14px;">
+                    <li>This meeting will be automatically removed from your calendar</li>
+                    <li>You will be notified if the meeting is rescheduled</li>
+                    <li>Please contact the organizer if you have any questions</li>
+                </ul>
+            </div>
+
+            <!-- Signature -->
+            <div style="padding-top: 20px; border-top: 1px solid #E5E7EB;">
+                <p style="margin: 0; color: #0f172a; font-size: 16px;">
+                    Best regards,<br>
+                    <strong>{organizerName}</strong>
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+</body>
+</html>`,
+    isHtml: true,
+    isSystem: true
   }
 ]
 

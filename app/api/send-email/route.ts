@@ -276,36 +276,15 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Convert times to UTC format for iCalendar
-      const startTime = calendarEvent.start || new Date().toISOString()
-      const endTime = calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString()
-
-      // Format times for iCalendar (local timezone format for Asia/Bangkok)
-      const formatICalTime = (dateString: string): string => {
-        const date = new Date(dateString)
-        // Convert to Asia/Bangkok timezone (+7 hours from UTC)
-        const bangkokTime = new Date(date.getTime() + (7 * 60 * 60 * 1000))
-        return bangkokTime.toISOString().replace(/[-:]/g, '').split('.')[0]
-      }
-
-      // Generate .ics calendar invite attachment
-      const icsContent = generateICSContent({
-        uid: `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
-        dtStart: formatICalTime(startTime),
-        dtEnd: formatICalTime(endTime),
-        summary: calendarEvent.summary || subject,
-        description: calendarEvent.description || emailBody.replace(/<[^>]*>/g, ''),
-        location: calendarEvent.location || '',
-        organizer: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
-        attendees: [...to, ...cleanCC]
-      })
-
-      // Add .ics file as attachment
+      // Generate iCalendar attachment
+      const calendarInvite = generateCalendarInvite(calendarEvent)
+      
+      // Add calendar attachment to email
       mailOptions.attachments = [
         {
-          filename: 'invite.ics',
-          content: icsContent,
-          contentType: 'text/calendar; method=REQUEST; charset=UTF-8'
+          filename: calendarInvite.filename,
+          content: calendarInvite.content,
+          contentType: calendarInvite.contentType
         }
       ]
     }

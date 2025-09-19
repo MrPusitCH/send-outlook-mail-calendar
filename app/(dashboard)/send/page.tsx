@@ -216,6 +216,140 @@ export default function SendEmailPage() {
     setTimeout(() => setStatus({ type: null, message: '' }), 3000)
   }
 
+  const generateCancellationEmailHTML = (calendarEvent: CalendarEvent, reason?: string) => {
+    const meetingDate = new Date(calendarEvent.start).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: '2-digit'
+    }).replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3')
+    const meetingDay = new Date(calendarEvent.start).toLocaleDateString('en-US', {
+      weekday: 'short'
+    })
+    const meetingTime = `${new Date(calendarEvent.start).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })}–${new Date(calendarEvent.end).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })}`
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Cancellation</title>
+</head>
+<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); padding: 25px; text-align: center;">
+            <h1 style="margin: 0; color: white; font-size: 22px; font-weight: 600;">
+                ❌ Meeting Cancelled
+            </h1>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 25px;">
+            
+            <!-- Greeting -->
+            <div style="margin-bottom: 20px;">
+                <p style="margin: 0; color: #0f172a; font-size: 16px;">
+                    Dear All,
+                </p>
+                <p style="margin: 10px 0 0 0; color: #0f172a; font-size: 16px;">
+                    I regret to inform you that the following meeting has been cancelled:
+                </p>
+            </div>
+
+            <!-- Cancellation Notice -->
+            <div style="background: #FEF2F2; border-radius: 8px; padding: 20px; border: 1px solid #FECACA; margin-bottom: 25px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
+                <p style="margin: 0; color: #DC2626; font-size: 18px; font-weight: 600;">
+                    MEETING CANCELLED
+                </p>
+            </div>
+
+            <!-- Meeting Info Card -->
+            <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
+                <div style="display: table; width: 100%;">
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            📋 Topic:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            ${calendarEvent.summary || 'Untitled Event'}
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            📅 Date:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            ${meetingDate} (${meetingDay})
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            ⏰ Time:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            ${meetingTime}
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            📍 Location:
+                        </div>
+                        <div style="display: table-cell; padding: 8px 0; color: #374151;">
+                            ${calendarEvent.location || 'TBD'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            ${reason ? `
+            <!-- Cancellation Reason -->
+            <div style="background: #FEF3C7; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #92400E; font-size: 14px; font-weight: 600;">
+                    📝 Reason for cancellation:
+                </p>
+                <p style="margin: 0; color: #92400E; font-size: 14px;">
+                    ${reason}
+                </p>
+            </div>
+            ` : ''}
+
+            <!-- Next Steps -->
+            <div style="background: #F0F9FF; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #1E40AF; font-size: 14px; font-weight: 600;">
+                    ℹ️ What happens next:
+                </p>
+                <ul style="margin: 0; padding-left: 20px; color: #1E40AF; font-size: 14px;">
+                    <li>This meeting will be automatically removed from your calendar</li>
+                    <li>You will be notified if the meeting is rescheduled</li>
+                    <li>Please contact the organizer if you have any questions</li>
+                </ul>
+            </div>
+
+            <!-- Signature -->
+            <div style="padding-top: 20px; border-top: 1px solid #E5E7EB;">
+                <p style="margin: 0; color: #0f172a; font-size: 16px;">
+                    Best regards,<br>
+                    <strong>DEDE_SYSTEM</strong>
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+</body>
+</html>`
+  }
+
   const generateDeviceDRMeetingHTML = (calendarEvent: CalendarEvent) => {
     const meetingDate = new Date(calendarEvent.start).toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -395,11 +529,16 @@ export default function SendEmailPage() {
 
     setSending(true)
     try {
-      // Use the beautiful HTML template for Device DR meetings
+      // Use the appropriate HTML template based on calendar event type
       let emailBody = formData.body
-      if (formData.calendarEvent && formData.calendarEvent.summary.includes('Device DR Meeting')) {
-        emailBody = generateDeviceDRMeetingHTML(formData.calendarEvent)
-      } else if (formData.calendarEvent) {
+      if (formData.calendarEvent) {
+        if (formData.calendarEvent.method === 'CANCEL') {
+          // Use cancellation template
+          emailBody = generateCancellationEmailHTML(formData.calendarEvent)
+        } else if (formData.calendarEvent.summary.includes('Device DR Meeting')) {
+          // Use Device DR meeting template
+          emailBody = generateDeviceDRMeetingHTML(formData.calendarEvent)
+        } else {
         // Fallback for other calendar events
         const timeTable = `
 <br><br>
@@ -438,7 +577,8 @@ export default function SendEmailPage() {
     </div>
   </div>
 </div>`
-        emailBody += timeTable
+          emailBody += timeTable
+        }
       }
 
       const emailData = {
@@ -478,11 +618,16 @@ export default function SendEmailPage() {
 
     setSending(true)
     try {
-      // Use the beautiful HTML template for Device DR meetings
+      // Use the appropriate HTML template based on calendar event type
       let emailBody = formData.body
-      if (formData.calendarEvent && formData.calendarEvent.summary.includes('Device DR Meeting')) {
-        emailBody = generateDeviceDRMeetingHTML(formData.calendarEvent)
-      } else if (formData.calendarEvent) {
+      if (formData.calendarEvent) {
+        if (formData.calendarEvent.method === 'CANCEL') {
+          // Use cancellation template
+          emailBody = generateCancellationEmailHTML(formData.calendarEvent)
+        } else if (formData.calendarEvent.summary.includes('Device DR Meeting')) {
+          // Use Device DR meeting template
+          emailBody = generateDeviceDRMeetingHTML(formData.calendarEvent)
+        } else {
         // Fallback for other calendar events
         const timeTable = `
 <br><br>
@@ -521,7 +666,8 @@ export default function SendEmailPage() {
     </div>
   </div>
 </div>`
-        emailBody += timeTable
+          emailBody += timeTable
+        }
       }
 
       const response = await fetch('/api/send-email', {
@@ -693,9 +839,53 @@ Tel: 0-3846-9700 #7650`,
     const cancelledEvent = createCancelledCalendarEvent(formData.calendarEvent)
     setFormData(prev => ({
       ...prev,
-      calendarEvent: cancelledEvent
+      calendarEvent: cancelledEvent,
+      subject: `CANCELLED: ${prev.subject}`,
+      body: generateCancellationEmailHTML(cancelledEvent)
     }))
-    setStatus({ type: 'success', message: 'Calendar event marked for cancellation' })
+    setStatus({ type: 'success', message: 'Calendar event marked for cancellation. Email content updated.' })
+  }
+
+  const sendCancellationEmail = async () => {
+    if (!formData.calendarEvent || formData.calendarEvent.method !== 'CANCEL') {
+      setStatus({ type: 'error', message: 'No cancelled calendar event found' })
+      return
+    }
+
+    if (formData.to.length === 0) {
+      setStatus({ type: 'error', message: 'At least one recipient is required' })
+      return
+    }
+
+    setSending(true)
+    try {
+      const emailData = {
+        ...formData,
+        body: generateCancellationEmailHTML(formData.calendarEvent)
+      }
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailData)
+      })
+
+      const result = await response.json()
+      
+      if (result.success) {
+        setStatus({ type: 'success', message: 'Cancellation email sent successfully!' })
+        // Clear form after successful cancellation
+        setFormData({ to: [], cc: [], subject: '', body: '', isHtml: true })
+        setShowCC(false)
+        localStorage.removeItem('emailDraft')
+      } else {
+        setStatus({ type: 'error', message: result.error || 'Failed to send cancellation email' })
+      }
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Network error occurred' })
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -1413,10 +1603,17 @@ Tel: 0-3846-9700 #7650`,
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-2">
-              <Button onClick={sendEmail} disabled={sending || formData.to.length === 0}>
-                <Send className="w-4 h-4 mr-1" />
-                {sending ? 'Sending...' : 'Send Email'}
-              </Button>
+              {formData.calendarEvent?.method === 'CANCEL' ? (
+                <Button onClick={sendCancellationEmail} disabled={sending || formData.to.length === 0} className="bg-red-600 hover:bg-red-700">
+                  <Send className="w-4 h-4 mr-1" />
+                  {sending ? 'Sending...' : 'Send Cancellation Email'}
+                </Button>
+              ) : (
+                <Button onClick={sendEmail} disabled={sending || formData.to.length === 0}>
+                  <Send className="w-4 h-4 mr-1" />
+                  {sending ? 'Sending...' : 'Send Email'}
+                </Button>
+              )}
 
               <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
                 <DialogTrigger asChild>
