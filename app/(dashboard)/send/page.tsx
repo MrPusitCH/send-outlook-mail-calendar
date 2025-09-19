@@ -14,21 +14,6 @@ import { SendEmailInput, CalendarEvent, CalendarAttendee } from '../../../lib/va
 import { COMMON_TIMEZONES, createUpdatedCalendarEvent, createCancelledCalendarEvent } from '../../../lib/calendar'
 import { SYSTEM_TEMPLATES, getTemplateById, formatTemplate, getDeviceDRTemplateVariables, EmailTemplate } from '../../../lib/templates'
 
-interface Employee {
-  id: string
-  email: string
-  name: string
-  divDeptSect?: string
-}
-
-interface Group {
-  id: string
-  groupName: string
-  divDeptSect?: string
-  members: Array<{
-    employee: Employee
-  }>
-}
 
 
 export default function SendEmailPage() {
@@ -45,11 +30,8 @@ export default function SendEmailPage() {
   const [previewMode, setPreviewMode] = useState(false)
   const [emailInput, setEmailInput] = useState('')
   const [ccInput, setCcInput] = useState('')
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [groups, setGroups] = useState<Group[]>([])
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [showTemplateDialog, setShowTemplateDialog] = useState(false)
-  const [showGroupDialog, setShowGroupDialog] = useState(false)
   const [showTestDialog, setShowTestDialog] = useState(false)
   const [testEmail, setTestEmail] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -72,8 +54,6 @@ export default function SendEmailPage() {
 
   // Load data on component mount
   useEffect(() => {
-    loadEmployees()
-    loadGroups()
     loadTemplates()
     loadDraft()
     loadTemplateFromURL()
@@ -112,45 +92,16 @@ export default function SendEmailPage() {
   }
 
   const loadEmployees = async () => {
-    try {
-      const response = await fetch('/api/employees')
-      const data = await response.json()
-      if (data.success) {
-        setEmployees(data.employees)
-      }
-    } catch (error) {
-      console.error('Failed to load employees:', error)
-    }
+    // No API available - function kept for compatibility
   }
 
   const loadGroups = async () => {
-    try {
-      const response = await fetch('/api/groups')
-      const data = await response.json()
-      if (data.success) {
-        setGroups(data.groups)
-      }
-    } catch (error) {
-      console.error('Failed to load groups:', error)
-    }
+    // No API available - function kept for compatibility
   }
 
   const loadTemplates = async () => {
-    try {
-      // Use system templates for now
-      setTemplates(SYSTEM_TEMPLATES)
-      
-      // Also try to load from API if available
-      const response = await fetch('/api/templates')
-      const data = await response.json()
-      if (data.success) {
-        setTemplates(prev => [...prev, ...data.templates])
-      }
-    } catch (error) {
-      console.error('Failed to load templates:', error)
-      // Fallback to system templates
-      setTemplates(SYSTEM_TEMPLATES)
-    }
+    // Use system templates only
+    setTemplates(SYSTEM_TEMPLATES)
   }
 
   const loadDraft = () => {
@@ -237,13 +188,6 @@ export default function SendEmailPage() {
     }))
   }
 
-  const addGroupMembers = (group: Group) => {
-    const memberEmails = group.members.map(m => m.employee.email)
-    const allEmails = [...formData.to, ...memberEmails]
-    const uniqueEmails = Array.from(new Set(allEmails))
-    setFormData(prev => ({ ...prev, to: uniqueEmails }))
-    setShowGroupDialog(false)
-  }
 
   const applyTemplate = (template: EmailTemplate) => {
     setFormData(prev => ({
@@ -759,15 +703,6 @@ export default function SendEmailPage() {
     }
   }
 
-  const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.email.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  const filteredGroups = groups.filter(group =>
-    group.groupName.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
   const filteredTemplates = templates.filter(template =>
     template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     template.subject.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1109,41 +1044,6 @@ Tel: 0-3846-9700 #7650`,
                 {showCC ? 'Hide CC' : 'Add CC'}
               </Button>
               
-              <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Users className="w-4 h-4 mr-1" />
-                    Add Group
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Add Group Members</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="Search groups..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <div className="space-y-2 overflow-y-auto max-h-60">
-                      {filteredGroups.map((group) => (
-                        <div
-                          key={group.id}
-                          className="p-3 border rounded-lg cursor-pointer hover:bg-muted"
-                          onClick={() => addGroupMembers(group)}
-                        >
-                          <div className="font-medium">{group.groupName}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {group.members.length} members
-                            {group.divDeptSect && ` • ${group.divDeptSect}`}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
 
               <Button variant="outline" size="sm" onClick={copyAllEmails}>
                 <Copy className="w-4 h-4 mr-1" />
@@ -1827,8 +1727,8 @@ Tel: 0-3846-9700 #7650`,
                             {meeting.status === 'cancelled' ? 'Cancelled' : 'Active'}
                           </Badge>
                         </div>
-                        <div className="text-sm text-gray-600 space-y-1">
-                          <div><strong>UID:</strong> <code className="bg-gray-200 px-1 rounded text-xs">{meeting.uid}</code></div>
+                        <div className="space-y-1 text-sm text-gray-600">
+                          <div><strong>UID:</strong> <code className="px-1 text-xs bg-gray-200 rounded">{meeting.uid}</code></div>
                           <div><strong>Date:</strong> {new Date(meeting.start).toLocaleDateString('en-US', {
                             weekday: 'short',
                             year: 'numeric',
