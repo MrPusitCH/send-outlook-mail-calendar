@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Mail, Users, FileText, Settings, Calendar, Zap } from 'lucide-react'
+import { Users, FileText, Settings, Calendar, Zap } from 'lucide-react'
 
 export default function HomePage() {
   return (
@@ -17,24 +17,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid gap-6 mb-12 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="text-center">
-              <Mail className="w-12 h-12 mx-auto mb-4 text-blue-600" />
-              <CardTitle>Send Emails</CardTitle>
-              <CardDescription>
-                Compose and send emails to internal recipients
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/send">
-                <Button className="w-full">
-                  Start Sending
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-6 mb-12 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="text-center">
               <Calendar className="w-12 h-12 mx-auto mb-4 text-green-600" />
@@ -116,9 +99,9 @@ export default function HomePage() {
 
         <div className="mt-12 space-y-4 text-center">
           <div className="flex flex-col justify-center gap-4 sm:flex-row">
-            <Link href="/send">
+            <Link href="/send?template=device-dr-meeting">
               <Button size="lg" className="px-8 py-3 text-lg">
-                Get Started - Send Your First Email
+                Get Started - Create Device DR Meeting
               </Button>
             </Link>
             <Link href="/components-demo">
