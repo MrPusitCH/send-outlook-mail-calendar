@@ -51,6 +51,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Ensure organizer identity matches SMTP From and authenticated account
+    const organizerEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+    const organizerName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
+
     // Create original event object with all details from the original invite
     const originalEvent = {
       uid,
@@ -59,9 +63,9 @@ export async function POST(request: NextRequest) {
       location: location || '',
       start,
       end,
-      organizer: organizer || {
-        name: 'DEDE_SYSTEM',
-        email: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+      organizer: {
+        name: organizerName,
+        email: organizerEmail
       },
       attendees: attendees.map((email: string) => ({
         email,
@@ -87,27 +91,25 @@ export async function POST(request: NextRequest) {
     transporter = createTransporter()
     await transporter.verify()
 
+    // Ensure From header matches organizer for Outlook compatibility
     const mailOptions = {
-      from: `${process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'} <${process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'}>`,
+      from: `${organizerName} <${organizerEmail}>`,
       to: attendees.join(', '),
       subject: `CANCELLED: ${summary}`,
       html: emailBody,
       headers: {
         'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
-        'Content-Class': 'urn:content-classes:calendarmessage'
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MICROSOFT-CDO-BUSYSTATUS': 'FREE',
+        'X-MICROSOFT-CDO-IMPORTANCE': '1',
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
       },
       attachments: [
-        {
-          filename: calendarInvite.filename,
-          content: calendarInvite.content,
-          contentType: calendarInvite.contentType,
-          contentDisposition: 'inline'
-        },
         {
           filename: 'cancel.ics',
           content: calendarInvite.content,
           contentType: calendarInvite.contentType,
-          contentDisposition: 'attachment'
+          contentDisposition: 'attachment' as const
         }
       ]
     }
@@ -116,12 +118,12 @@ export async function POST(request: NextRequest) {
     const info = await transporter.sendMail(mailOptions)
 
     // Log cancellation details for traceability
-    console.log(`[CANCELLATION] UID: ${uid}, SEQUENCE: ${cancelledEvent.sequence}, Recipients: ${attendees.join(', ')}, Status: SENT, MessageID: ${info.messageId}`)
+    console.log(`[CANCELLATION] UID: ${uid}, SEQUENCE: ${cancelledEvent.sequence}, Recipients: ${attendees.join(', ')}, Status: SENT, MessageID: ${info?.messageId || 'unknown'}, Organizer: ${organizerEmail}, Method: CANCEL`)
 
     return NextResponse.json({
       success: true,
       message: 'Cancellation email sent successfully',
-      messageId: info.messageId,
+      messageId: info?.messageId || 'unknown',
       data: {
         meetingId,
         uid: cancelledEvent.uid,

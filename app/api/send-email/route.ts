@@ -294,50 +294,51 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Convert times to UTC format for iCalendar
-      const startTime = calendarEvent.start || new Date().toISOString()
-      const endTime = calendarEvent.end || new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      // Generate .ics calendar invite using the enhanced calendar library
+      const calendarInvite = generateCalendarInvite(calendarEvent)
 
-      // Format times for iCalendar (local timezone format for Asia/Bangkok)
-      const formatICalTime = (dateString: string): string => {
-        const date = new Date(dateString)
-        // Convert to Asia/Bangkok timezone (+7 hours from UTC)
-        const bangkokTime = new Date(date.getTime() + (7 * 60 * 60 * 1000))
-        return bangkokTime.toISOString().replace(/[-:]/g, '').split('.')[0]
-      }
-
-      // Generate .ics calendar invite attachment
-      const icsContent = generateICSContent({
-        uid: calendarEvent.uid || `${Date.now()}-${Math.random().toString(36).substring(2)}@${process.env.SMTP_FROM_EMAIL || 'dit.daikin.co.jp'}`,
-        dtStart: formatICalTime(startTime),
-        dtEnd: formatICalTime(endTime),
-        summary: calendarEvent.summary || subject,
-        description: calendarEvent.description || emailBody.replace(/<[^>]*>/g, ''),
-        location: calendarEvent.location || '',
-        organizer: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp',
-        attendees: [...to, ...cleanCC],
-        method: calendarEvent.method || 'REQUEST',
-        sequence: calendarEvent.sequence || (calendarEvent.method === 'CANCEL' ? 1 : 0)
-      })
-
-      // Add calendar headers for proper recognition
+      // Add calendar headers for proper Outlook recognition
       mailOptions.headers = {
         'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
-        'Content-Class': 'urn:content-classes:calendarmessage'
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MICROSOFT-CDO-BUSYSTATUS': calendarEvent.method === 'CANCEL' ? 'FREE' : 'BUSY',
+        'X-MICROSOFT-CDO-IMPORTANCE': '1',
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
       }
 
-      // Add .ics file as both inline and attachment for better compatibility
+      // For cancellations, use multipart/alternative layout as required by Outlook
+      if (calendarEvent.method === 'CANCEL') {
+        // Set multipart/alternative content type
+        mailOptions.headers['Content-Type'] = 'multipart/alternative; boundary="----=_Part_Calendar_Cancel"'
+        
+        // Create multipart body with text and calendar parts
+        const textPart = emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
+        const calendarPart = calendarInvite.content
+        
+        mailOptions.text = `------=_Part_Calendar_Cancel
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+${textPart}
+
+------=_Part_Calendar_Cancel
+Content-Type: text/calendar; method=CANCEL; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+${calendarPart}
+
+------=_Part_Calendar_Cancel--`
+
+        // Remove HTML body for multipart
+        delete mailOptions.html
+      }
+
+      // Add .ics file as attachment for better compatibility
       mailOptions.attachments = [
         {
           filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
-          content: icsContent,
-          contentType: `text/calendar; method=${calendarEvent.method || 'REQUEST'}; charset=UTF-8`,
-          contentDisposition: 'inline'
-        },
-        {
-          filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
-          content: icsContent,
-          contentType: `text/calendar; method=${calendarEvent.method || 'REQUEST'}; charset=UTF-8`,
+          content: calendarInvite.content,
+          contentType: calendarInvite.contentType,
           contentDisposition: 'attachment'
         }
       ]
@@ -347,7 +348,7 @@ export async function POST(request: NextRequest) {
 
     // Log success with calendar details if present
     if (calendarEvent) {
-      console.log(`[CALENDAR_${calendarEvent.method || 'REQUEST'}] UID: ${calendarEvent.uid || 'generated'}, SEQUENCE: ${calendarEvent.sequence || 0}, Recipients: ${[...to, ...cleanCC].join(', ')}, Status: SENT, MessageID: ${info.messageId}`)
+      console.log(`[CALENDAR_${calendarEvent.method || 'REQUEST'}] UID: ${calendarEvent.uid || 'generated'}, SEQUENCE: ${calendarEvent.sequence || 0}, Recipients: ${[...to, ...cleanCC].join(', ')}, Status: SENT, MessageID: ${info.messageId}, Organizer: ${calendarEvent.organizer?.email || 'unknown'}, Method: ${calendarEvent.method || 'REQUEST'}`)
     }
     logEmail(to, subject, 'SUCCESS')
 
