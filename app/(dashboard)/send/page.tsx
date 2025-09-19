@@ -882,11 +882,14 @@ Tel: 0-3846-9700 #7650`,
       const result = await response.json()
       
       if (result.success) {
-        setStatus({ type: 'success', message: 'Cancellation email sent successfully!' })
-        // Clear form after successful cancellation
-        setFormData({ to: [], cc: [], subject: '', body: '', isHtml: true })
-        setShowCC(false)
-        localStorage.removeItem('emailDraft')
+        setStatus({ type: 'success', message: 'Cancellation email sent successfully! You can resend it or create a new meeting.' })
+        // Don't clear the calendar event - keep it for potential resending
+        // Just clear the email content but keep the calendar event
+        setFormData(prev => ({
+          ...prev,
+          subject: `CANCELLED: ${prev.calendarEvent?.summary || 'Meeting'}`,
+          body: generateCancellationEmailHTML(prev.calendarEvent!)
+        }))
       } else {
         setStatus({ type: 'error', message: result.error || 'Failed to send cancellation email' })
       }
@@ -1620,7 +1623,7 @@ Tel: 0-3846-9700 #7650`,
                 </div>
                 <p className="text-sm text-red-600">
                   The meeting has been marked for cancellation. The email content and .ics cancellation file have been prepared.
-                  Click "Send Cancellation Email" below to notify all participants.
+                  Click "Resend Cancellation Email" below to notify all participants again, or "Create New Meeting" to start fresh.
                 </p>
                 {cancellationReason && (
                   <div className="p-3 bg-red-100 border border-red-200 rounded">
@@ -1638,10 +1641,24 @@ Tel: 0-3846-9700 #7650`,
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-2">
               {formData.calendarEvent?.method === 'CANCEL' ? (
-                <Button onClick={sendCancellationEmail} disabled={sending || formData.to.length === 0} className="bg-red-600 hover:bg-red-700">
-                  <Send className="w-4 h-4 mr-1" />
-                  {sending ? 'Sending...' : 'Send Cancellation Email'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={sendCancellationEmail} disabled={sending || formData.to.length === 0} className="bg-red-600 hover:bg-red-700">
+                    <Send className="w-4 h-4 mr-1" />
+                    {sending ? 'Sending...' : 'Resend Cancellation Email'}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setFormData({ to: [], cc: [], subject: '', body: '', isHtml: true })
+                      setShowCC(false)
+                      localStorage.removeItem('emailDraft')
+                    }}
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Create New Meeting
+                  </Button>
+                </div>
               ) : (
                 <Button onClick={sendEmail} disabled={sending || formData.to.length === 0}>
                   <Send className="w-4 h-4 mr-1" />
