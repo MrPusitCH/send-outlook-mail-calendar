@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { sendEmailInputSchema, validateEmailDomain, getAllowedEmailDomainSuffix, cleanEmailListNoValidation } from '@/lib/validators'
 import { createCalendarEvent, generateCalendarInvite } from '@/lib/calendar'
+import { saveInviteMeta } from '@/lib/calendar-store'
+import { saveEml } from '@/lib/email-debug'
 // import { generateCalendarInvitationEmail, CalendarInvitationParams } from '@/lib/calendar-invitation-generator'
 // DISABLED - Now using beautiful HTML templates instead
 
@@ -220,7 +222,7 @@ export async function POST(request: NextRequest) {
         }
       ]
 
-      // Add .ics file as proper attachment with correct MIME type
+    // Add .ics file as proper attachment with correct MIME type
       mailOptions.attachments = [
         {
           filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
@@ -244,6 +246,23 @@ export async function POST(request: NextRequest) {
         'X-MS-OLK-AUTOFORWARD': 'FALSE',
         'X-MS-OLK-AUTOREPLY': 'FALSE',
         'MIME-Version': '1.0'
+      }
+
+      // Persist REQUEST metadata to store for future CANCEL
+      if ((calendarEvent.method || 'REQUEST') === 'REQUEST' && calendarEvent.uid && calendarEvent.organizer?.email) {
+        const contentForPersist = calendarInvite.content.replace(/\r?\n/g, '\r\n')
+        const get = (k: string) => (contentForPersist.match(new RegExp(`^${k}:(.*)$`, 'm'))?.[1] || '').trim()
+        const organizerLine = (contentForPersist.match(/^ORGANIZER[^\r\n]*$/m)?.[0] || '').trim()
+        const meta = {
+          uid: get('UID') || calendarEvent.uid,
+          dtstart: get('DTSTART'),
+          dtend: get('DTEND'),
+          sequence: parseInt(get('SEQUENCE') || '0', 10),
+          organizerLine
+        }
+        if (meta.uid && meta.dtstart && meta.dtend && meta.organizerLine) {
+          saveInviteMeta(meta)
+        }
       }
 
       // Remove the old html/text properties since we're using alternatives

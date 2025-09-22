@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { generateCalendarInvite, createCancelledCalendarEvent } from '@/lib/calendar'
 import { generateCancellationEmailHTML } from '@/lib/templates'
+import { getInviteMeta, extractMetaFromICS, saveInviteMeta } from '@/lib/calendar-store'
+import { saveEml } from '@/lib/email-debug'
 
 // Email configuration
 const createTransporter = () => {
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { meetingId, uid, summary, start, end, attendees, reason, sequence, organizer, location, description } = body
+    const { meetingId, originalUid, uid, summary, start, end, attendees, reason, sequence, organizer, location, description, fallbackEmlPath } = body
 
     // Helper: RFC5545 basic format checker (YYYYMMDDTHHMMSSZ)
     const isBasicDateTime = (value: string): boolean => /^(\d{8}T\d{6}Z)$/.test(value)
@@ -61,15 +63,44 @@ export async function POST(request: NextRequest) {
       return `${year}${month}${day}T${hours}${minutes}${seconds}Z`
     }
 
-    // Normalize DTSTART/DTEND to RFC5545 basic format to match REQUEST exactly
-    const normalizedStart = typeof start === 'string' && isBasicDateTime(start) ? start : toRFC5545BasicUTC(String(start))
-    const normalizedEnd = typeof end === 'string' && isBasicDateTime(end) ? end : toRFC5545BasicUTC(String(end))
+    // Require originalUid
+    const effectiveUid = originalUid || uid
+    if (!effectiveUid) {
+      return NextResponse.json({ success: false, error: 'originalUid is required for cancellation' }, { status: 400 })
+    }
+
+    // Lookup stored REQUEST meta
+    let stored = getInviteMeta(effectiveUid)
+
+    // Optional fallback: parse provided EML to extract ICS
+    if (!stored && typeof fallbackEmlPath === 'string') {
+      try {
+        const fs = await import('fs')
+        const raw = fs.readFileSync(fallbackEmlPath, 'utf8')
+        // Extract text/calendar payload (very basic parser)
+        const match = raw.match(/Content-Type: text\/calendar[\s\S]*?\r\n\r\n([\s\S]*?)\r\n--/i)
+        if (match) {
+          const icsText = match[1]
+          const meta = extractMetaFromICS(icsText)
+          if (meta) {
+            saveInviteMeta(meta)
+            stored = meta
+          }
+        }
+      } catch (e) {
+        console.warn('[CANCEL_FALLBACK] Failed to parse EML', e)
+      }
+    }
+
+    if (!stored) {
+      return NextResponse.json({ success: false, error: `Original invite not found for UID: ${effectiveUid}` }, { status: 404 })
+    }
 
     // Validate required fields for cancellation
-    if (!uid || !summary || !normalizedStart || !normalizedEnd || !attendees || !Array.isArray(attendees)) {
+    if (!summary || !attendees || !Array.isArray(attendees)) {
       return NextResponse.json({
         success: false,
-        error: 'Missing required fields: uid, summary, start, end, attendees'
+        error: 'Missing required fields: summary, attendees'
       }, { status: 400 })
     }
 
@@ -77,26 +108,24 @@ export async function POST(request: NextRequest) {
     const organizerEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
     const organizerName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
 
-    // Create original event object with all details from the original invite
-    // CRITICAL: Preserve exact original data for proper cancellation
+    // Create original event object from stored meta (preserve EXACT values)
     const originalEvent = {
-      uid, // CRITICAL: Must be exact same UID as original event
+      uid: stored.uid,
       summary,
       description: description || '',
       location: location || '',
-      start: normalizedStart, // CRITICAL: Must be exact same format as original event
-      end: normalizedEnd,   // CRITICAL: Must be exact same format as original event
+      start: stored.dtstart,
+      end: stored.dtend,
       organizer: {
         name: organizerName,
-        email: organizerEmail // CRITICAL: Must match SMTP From address
+        email: organizerEmail
       },
       attendees: attendees.map((email: string) => ({
         email,
         role: 'REQ-PARTICIPANT' as const,
         status: 'NEEDS-ACTION' as const
       })),
-      // CRITICAL: Use the original sequence or default to 0
-      sequence: sequence || 0,
+      sequence: stored.sequence || 0,
       method: 'REQUEST' as const,
       status: 'CONFIRMED' as const
     }
@@ -130,6 +159,10 @@ export async function POST(request: NextRequest) {
         {
           contentType: 'text/html; charset=UTF-8',
           content: emailBody
+        },
+        {
+          contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
+          content: calendarInvite.content
         }
       ],
       headers: {
