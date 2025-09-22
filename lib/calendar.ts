@@ -121,18 +121,39 @@ function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
 
 /**
  * Apply line folding for lines > 75 octets (RFC5545)
+ * CRITICAL: Must not break words - fold at safe boundaries
  */
 function foldLine(line: string): string {
   if (line.length <= 75) return line
+  
   const folded: string[] = []
   let remaining = line
+  
   while (remaining.length > 75) {
-    folded.push(remaining.substring(0, 75))
-    remaining = ' ' + remaining.substring(75) // Space + continuation
+    // Find the best break point (avoid breaking words)
+    let breakPoint = 75
+    
+    // Look for safe break points (spaces, semicolons, colons)
+    const safeBreaks = [remaining.lastIndexOf(' ', 75), remaining.lastIndexOf(';', 75), remaining.lastIndexOf(':', 75)]
+    const validBreaks = safeBreaks.filter(pos => pos > 50) // Don't break too early
+    
+    if (validBreaks.length > 0) {
+      breakPoint = Math.max(...validBreaks)
+    }
+    
+    // If no safe break found, break at 75 characters
+    if (breakPoint <= 50) {
+      breakPoint = 75
+    }
+    
+    folded.push(remaining.substring(0, breakPoint))
+    remaining = ' ' + remaining.substring(breakPoint) // Space + continuation
   }
+  
   if (remaining.length > 0) {
     folded.push(remaining)
   }
+  
   // CRITICAL: Use CRLF line endings as required by RFC 5545
   return folded.join('\r\n')
 }
@@ -170,12 +191,24 @@ export function generateICalContent(event: CalendarEvent): string {
   if (event.start && event.end) {
     // CRITICAL: For cancellations, use EXACT same format as original event
     // Do NOT convert timezone - preserve original format to ensure exact match
-    const isCancellation = event.method === 'CANCEL'
-    const startFormatted = ensureConsistentDateFormat(event.start, isCancellation)
-    const endFormatted = ensureConsistentDateFormat(event.end, isCancellation)
-    
-    lines.push(`DTSTART:${startFormatted}`)
-    lines.push(`DTEND:${endFormatted}`)
+    if (event.method === 'CANCEL') {
+      // For cancellations, use the exact same format as the original
+      lines.push(`DTSTART:${event.start}`)
+      lines.push(`DTEND:${event.end}`)
+    } else {
+      // For new events, check if already in proper format
+      if (event.start.includes('T') && event.start.endsWith('Z')) {
+        // Already in proper format
+        lines.push(`DTSTART:${event.start}`)
+        lines.push(`DTEND:${event.end}`)
+      } else {
+        // Convert to proper UTC format
+        const startUTC = new Date(event.start).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+        const endUTC = new Date(event.end).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+        lines.push(`DTSTART:${startUTC}`)
+        lines.push(`DTEND:${endUTC}`)
+      }
+    }
   }
 
   // SUMMARY - REQUIRED field, for cancellations, append "(Cancelled)" to make it clear
@@ -231,13 +264,8 @@ export function generateICalContent(event: CalendarEvent): string {
   const status = event.method === 'CANCEL' ? 'CANCELLED' : (event.status || 'CONFIRMED')
   lines.push(`STATUS:${status}`)
 
-  // CRITICAL: Add RECURRENCE-ID for proper cancellation handling (if applicable)
-  // This helps calendar clients identify the specific instance being cancelled
-  if (event.method === 'CANCEL' && event.start) {
-    // Use the same format as DTSTART for consistency
-    const recurrenceId = event.start
-    lines.push(`RECURRENCE-ID:${recurrenceId}`)
-  }
+  // NOTE: RECURRENCE-ID is only for recurring events, not single events
+  // For single events, the UID + SEQUENCE combination is sufficient for cancellation
 
   // End event
   lines.push('END:VEVENT')
@@ -315,13 +343,26 @@ export function createCalendarEvent(params: {
 
   const attendees = [...toAttendees, ...ccAttendees]
   
+  // Ensure dates are in proper UTC format for consistency
+  const formatDateForICS = (date: string | Date): string => {
+    if (date instanceof Date) {
+      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    }
+    // If it's already a string, validate it's a proper date first
+    const dateObj = new Date(date)
+    if (isNaN(dateObj.getTime())) {
+      throw new Error(`Invalid date format: ${date}`)
+    }
+    return dateObj.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  }
+
   return {
     uid: params.uid || generateEventUID(),
     summary: params.summary,
     description: params.description,
     location: params.location,
-    start: params.start instanceof Date ? params.start.toISOString() : params.start,
-    end: params.end instanceof Date ? params.end.toISOString() : params.end,
+    start: formatDateForICS(params.start),
+    end: formatDateForICS(params.end),
     timezone: params.timezone,
     organizer: params.organizerName && params.organizerEmail ? {
       name: params.organizerName,

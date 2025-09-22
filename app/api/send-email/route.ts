@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
           filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
           content: calendarInvite.content,
           contentType: `text/calendar; method=${method}; charset=UTF-8`,
-          contentDisposition: 'inline',
+          contentDisposition: 'attachment',
           encoding: 'utf8'
         }
       ]
