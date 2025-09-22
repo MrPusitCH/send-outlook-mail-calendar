@@ -151,7 +151,7 @@ function foldLine(line: string): string {
     // Include ':' so we can break right after property-value separators like "SUMMARY:" or 
     // after parameter-value separator before "mailto:..."
     const safeDelimiters = [' ', ';', ',', ':']
-    const unsafeTokens = ['mailto:', 'CN=', 'ROLE=', 'RSVP=', 'PARTSTAT=']
+    const unsafeTokens = ['mailto:', 'CN=', 'ROLE=', 'RSVP=', 'PARTSTAT=', 'Cancelled']
 
     // Look for safe break points, prioritizing later positions
     for (let i = 74; i >= 50; i--) {
@@ -247,11 +247,9 @@ export function generateICalContent(event: CalendarEvent): string {
     }
   }
 
-  // SUMMARY - REQUIRED field, for cancellations, append "(Cancelled)" to make it clear
+  // SUMMARY - REQUIRED field; keep identical for CANCEL to maximize client matching
   const summary = event.summary || 'Meeting'
-  const displaySummary = event.method === 'CANCEL'
-    ? `${summary} (Cancelled)`
-    : summary
+  const displaySummary = summary
   lines.push(foldLine(`SUMMARY:${escapeICalText(displaySummary)}`))
 
   // DESCRIPTION - Optional but helpful
