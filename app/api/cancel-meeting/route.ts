@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
           filename: 'cancel.ics',
           content: calendarInvite.content,
           contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
-          contentDisposition: 'attachment' as const,
+          contentDisposition: 'inline' as const,
           encoding: 'utf8'
         }
       ]
