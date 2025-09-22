@@ -42,24 +42,32 @@ export function generateEventUID(): string {
 }
 
 /**
- * Format date for iCalendar (UTC or with timezone)
+ * Format date for iCalendar (RFC5545 basic format)
+ * Converts any date input to RFC5545 basic UTC format: YYYYMMDDTHHMMSSZ
  */
 function formatICalDate(dateString: string, timezone?: string): string {
   const date = new Date(dateString)
-  
+
   if (timezone) {
-    // Use timezone identifier
+    // Use timezone identifier - still basic format but without Z
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     const hours = String(date.getHours()).padStart(2, '0')
     const minutes = String(date.getMinutes()).padStart(2, '0')
     const seconds = String(date.getSeconds()).padStart(2, '0')
-    
+
     return `${year}${month}${day}T${hours}${minutes}${seconds}`
   } else {
-    // Use UTC
-    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    // Use UTC - RFC5545 basic format
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    const hours = String(date.getUTCHours()).padStart(2, '0')
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+    const seconds = String(date.getUTCSeconds()).padStart(2, '0')
+
+    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`
   }
 }
 
@@ -72,9 +80,8 @@ function ensureConsistentDateFormat(dateString: string, isCancellation: boolean 
     // For cancellations, return the date as-is to preserve original format
     return dateString
   } else {
-    // For new events, ensure UTC format with Z suffix
-    const date = new Date(dateString)
-    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    // For new events, ensure RFC5545 basic UTC format
+    return formatICalDate(dateString)
   }
 }
 
@@ -127,39 +134,58 @@ function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
 
 /**
  * Apply line folding for lines > 75 octets (RFC5545)
- * CRITICAL: Must not break words - fold at safe boundaries
+ * CRITICAL: Must not break words - fold at safe boundaries only
+ * CRITICAL: Never fold inside tokens like "mailto:", "CN=", etc.
  */
 function foldLine(line: string): string {
   if (line.length <= 75) return line
-  
+
   const folded: string[] = []
   let remaining = line
-  
+
   while (remaining.length > 75) {
-    // Find the best break point (avoid breaking words)
+    // Find the best break point (avoid breaking words and tokens)
     let breakPoint = 75
-    
-    // Look for safe break points (spaces, semicolons, colons)
-    const safeBreaks = [remaining.lastIndexOf(' ', 75), remaining.lastIndexOf(';', 75), remaining.lastIndexOf(':', 75)]
-    const validBreaks = safeBreaks.filter(pos => pos > 50) // Don't break too early
-    
-    if (validBreaks.length > 0) {
-      breakPoint = Math.max(...validBreaks)
+
+    // Define safe delimiters where we can break
+    const safeDelimiters = [' ', ';', ',']
+    const unsafeTokens = ['mailto:', 'CN=', 'ROLE=', 'RSVP=', 'PARTSTAT=']
+
+    // Look for safe break points, prioritizing later positions
+    for (let i = 74; i >= 50; i--) {
+      const char = remaining[i]
+
+      if (safeDelimiters.includes(char)) {
+        // Check if we're inside an unsafe token
+        let isInsideUnsafeToken = false
+        for (const token of unsafeTokens) {
+          const tokenStart = remaining.lastIndexOf(token, i)
+          if (tokenStart >= 0 && tokenStart + token.length > i) {
+            isInsideUnsafeToken = true
+            break
+          }
+        }
+
+        if (!isInsideUnsafeToken) {
+          breakPoint = i + 1 // Break after the delimiter
+          break
+        }
+      }
     }
-    
-    // If no safe break found, break at 75 characters
-    if (breakPoint <= 50) {
+
+    // If no safe break found, we have to break at 75 (RFC5545 hard limit)
+    if (breakPoint >= 75) {
       breakPoint = 75
     }
-    
+
     folded.push(remaining.substring(0, breakPoint))
-    remaining = ' ' + remaining.substring(breakPoint) // Space + continuation
+    remaining = ' ' + remaining.substring(breakPoint) // SPACE + continuation line
   }
-  
+
   if (remaining.length > 0) {
     folded.push(remaining)
   }
-  
+
   // CRITICAL: Use CRLF line endings as required by RFC 5545
   return folded.join('\r\n')
 }
@@ -191,7 +217,7 @@ export function generateICalContent(event: CalendarEvent): string {
 
   // DTSTAMP - REQUIRED field, current timestamp in UTC
   const now = new Date()
-  lines.push(`DTSTAMP:${now.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`)
+  lines.push(`DTSTAMP:${formatICalDate(now.toISOString())}`)
 
   // DTSTART/DTEND - REQUIRED fields, must match original invite exactly for cancellations
   if (event.start && event.end) {
@@ -208,9 +234,9 @@ export function generateICalContent(event: CalendarEvent): string {
         lines.push(`DTSTART:${event.start}`)
         lines.push(`DTEND:${event.end}`)
       } else {
-        // Convert to proper UTC format
-        const startUTC = new Date(event.start).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-        const endUTC = new Date(event.end).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+        // Convert to proper RFC5545 basic UTC format
+        const startUTC = formatICalDate(event.start)
+        const endUTC = formatICalDate(event.end)
         lines.push(`DTSTART:${startUTC}`)
         lines.push(`DTEND:${endUTC}`)
       }
@@ -349,17 +375,17 @@ export function createCalendarEvent(params: {
 
   const attendees = [...toAttendees, ...ccAttendees]
   
-  // Ensure dates are in proper UTC format for consistency
+  // Ensure dates are in proper RFC5545 basic UTC format for consistency
   const formatDateForICS = (date: string | Date): string => {
     if (date instanceof Date) {
-      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      return formatICalDate(date.toISOString())
     }
     // If it's already a string, validate it's a proper date first
     const dateObj = new Date(date)
     if (isNaN(dateObj.getTime())) {
       throw new Error(`Invalid date format: ${date}`)
     }
-    return dateObj.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    return formatICalDate(dateObj.toISOString())
   }
 
   return {
