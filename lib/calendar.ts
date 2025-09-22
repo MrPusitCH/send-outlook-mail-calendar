@@ -148,7 +148,9 @@ function foldLine(line: string): string {
     let breakPoint = 75
 
     // Define safe delimiters where we can break
-    const safeDelimiters = [' ', ';', ',']
+    // Include ':' so we can break right after property-value separators like "SUMMARY:" or 
+    // after parameter-value separator before "mailto:..."
+    const safeDelimiters = [' ', ';', ',', ':']
     const unsafeTokens = ['mailto:', 'CN=', 'ROLE=', 'RSVP=', 'PARTSTAT=']
 
     // Look for safe break points, prioritizing later positions
@@ -160,9 +162,18 @@ function foldLine(line: string): string {
         let isInsideUnsafeToken = false
         for (const token of unsafeTokens) {
           const tokenStart = remaining.lastIndexOf(token, i)
-          if (tokenStart >= 0 && tokenStart + token.length > i) {
-            isInsideUnsafeToken = true
-            break
+          if (tokenStart >= 0) {
+            const tokenEnd = tokenStart + token.length - 1
+            // If cursor is strictly within token, it's unsafe
+            if (i >= tokenStart && i < tokenEnd) {
+              isInsideUnsafeToken = true
+              break
+            }
+            // Special-case: allow breaking exactly AFTER the end of the token
+            // e.g., allow break at the ':' in "mailto:"
+            if (i === tokenEnd && char === ':') {
+              // This is safe; do not mark as inside unsafe token
+            }
           }
         }
 
