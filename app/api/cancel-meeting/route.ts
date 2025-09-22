@@ -56,23 +56,24 @@ export async function POST(request: NextRequest) {
     const organizerName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
 
     // Create original event object with all details from the original invite
+    // CRITICAL: Preserve exact original data for proper cancellation
     const originalEvent = {
-      uid,
+      uid, // CRITICAL: Must be exact same UID as original event
       summary,
       description: description || '',
       location: location || '',
-      start,
-      end,
+      start, // CRITICAL: Must be exact same format as original event
+      end,   // CRITICAL: Must be exact same format as original event
       organizer: {
         name: organizerName,
-        email: organizerEmail
+        email: organizerEmail // CRITICAL: Must match SMTP From address
       },
       attendees: attendees.map((email: string) => ({
         email,
         role: 'REQ-PARTICIPANT' as const,
         status: 'NEEDS-ACTION' as const
       })),
-      // Use the original sequence or default to 0
+      // CRITICAL: Use the original sequence or default to 0
       sequence: sequence || 0,
       method: 'REQUEST' as const,
       status: 'CONFIRMED' as const
@@ -91,7 +92,10 @@ export async function POST(request: NextRequest) {
     transporter = createTransporter()
     await transporter.verify()
 
-    // Use proper multipart/alternative structure like in send-email API
+    // CRITICAL: Use proper MIME structure for Outlook compatibility
+    // Structure: multipart/mixed -> multipart/alternative (text/plain + text/html) + text/calendar attachment
+    const textBody = emailBody.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+    
     const mailOptions = {
       from: `${organizerName} <${organizerEmail}>`,
       to: attendees.join(', '),
@@ -99,28 +103,33 @@ export async function POST(request: NextRequest) {
       alternatives: [
         {
           contentType: 'text/plain; charset=UTF-8',
-          content: emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
+          content: textBody
         },
         {
-          contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
-          content: calendarInvite.content,
-          headers: {
-            'Content-Class': 'urn:content-classes:calendarmessage'
-          }
+          contentType: 'text/html; charset=UTF-8',
+          content: emailBody
         }
       ],
       headers: {
         'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
         'X-MICROSOFT-CDO-BUSYSTATUS': 'FREE',
         'X-MICROSOFT-CDO-IMPORTANCE': '1',
-        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE'
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE',
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MS-HAS-ATTACH': 'TRUE',
+        'X-MS-OLK-CONFTYPE': '0',
+        'X-MS-OLK-SENDER': organizerEmail,
+        'X-MS-OLK-AUTOFORWARD': 'FALSE',
+        'X-MS-OLK-AUTOREPLY': 'FALSE',
+        'MIME-Version': '1.0'
       },
       attachments: [
         {
           filename: 'cancel.ics',
           content: calendarInvite.content,
-          contentType: calendarInvite.contentType,
-          contentDisposition: 'attachment' as const
+          contentType: 'text/calendar; method=CANCEL; charset=UTF-8',
+          contentDisposition: 'attachment' as const,
+          encoding: 'utf8'
         }
       ]
     }
@@ -129,12 +138,12 @@ export async function POST(request: NextRequest) {
     const info = await transporter.sendMail(mailOptions)
 
     // Log cancellation details for traceability
-    console.log(`[CANCELLATION] UID: ${uid}, SEQUENCE: ${cancelledEvent.sequence}, Recipients: ${attendees.join(', ')}, Status: SENT, MessageID: ${info?.messageId || 'unknown'}, Organizer: ${organizerEmail}, Method: CANCEL`)
+    console.log(`[CANCELLATION] UID: ${uid}, SEQUENCE: ${cancelledEvent.sequence}, Recipients: ${attendees.join(', ')}, Status: SENT, MessageID: ${info.messageId || 'unknown'}, Organizer: ${organizerEmail}, Method: CANCEL`)
 
     return NextResponse.json({
       success: true,
       message: 'Cancellation email sent successfully',
-      messageId: info?.messageId || 'unknown',
+      messageId: info.messageId || 'unknown',
       data: {
         meetingId,
         uid: cancelledEvent.uid,

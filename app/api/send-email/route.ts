@@ -178,41 +178,58 @@ export async function POST(request: NextRequest) {
 
     // Add calendar invite if provided
     if (calendarEvent) {
-      // Ensure organizer matches SMTP From address for proper recognition
+      // CRITICAL: Ensure organizer matches SMTP From address for proper recognition
       const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
       const fromName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
 
-      // Set organizer to match SMTP From if not already set
-      if (!calendarEvent.organizer || calendarEvent.organizer.email !== fromEmail) {
-        calendarEvent.organizer = {
-          name: fromName,
-          email: fromEmail
+      // CRITICAL: For cancellations, organizer MUST match exactly - no changes allowed
+      // For new events, set organizer to match SMTP From
+      if (calendarEvent.method !== 'CANCEL') {
+        if (!calendarEvent.organizer || calendarEvent.organizer.email !== fromEmail) {
+          calendarEvent.organizer = {
+            name: fromName,
+            email: fromEmail
+          }
+        }
+      } else {
+        // For cancellations, validate that organizer matches SMTP From
+        if (calendarEvent.organizer?.email !== fromEmail) {
+          console.warn(`[CANCELLATION_WARNING] Organizer email mismatch: ${calendarEvent.organizer?.email} vs ${fromEmail}`)
         }
       }
 
       // Generate .ics calendar invite using the enhanced calendar library
       const calendarInvite = generateCalendarInvite(calendarEvent)
+      const method = calendarEvent.method === 'CANCEL' ? 'CANCEL' : 'REQUEST'
 
-       // Use Nodemailer's built-in calendar support for better Outlook compatibility
-       const method = calendarEvent.method === 'CANCEL' ? 'CANCEL' : 'REQUEST'
-       
-       // Set up calendar event for Nodemailer
-       mailOptions.icalEvent = {
-         content: calendarInvite.content,
-         method: method,
-         encoding: 'utf8'
-       }
+      // CRITICAL: Create proper MIME structure for Outlook compatibility
+      // Structure: multipart/mixed -> multipart/alternative (text/plain + text/html) + text/calendar attachment
+      
+      // Create text/plain version (strip HTML tags)
+      const textBody = emailBody.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+      
+      // Set up proper multipart structure
+      mailOptions.alternatives = [
+        {
+          contentType: 'text/plain; charset=UTF-8',
+          content: textBody
+        },
+        {
+          contentType: 'text/html; charset=UTF-8',
+          content: emailBody
+        }
+      ]
 
-       // For calendar invites, we still need alternatives for the email body
-       if (calendarEvent.method === 'CANCEL') {
-         // For cancellations, use text/plain
-         mailOptions.text = emailBody.replace(/<[^>]*>/g, '') // Strip HTML for text part
-         delete mailOptions.html
-       } else {
-         // For regular invitations, use HTML
-         mailOptions.html = emailBody
-         delete mailOptions.text
-       }
+      // Add .ics file as proper attachment with correct MIME type
+      mailOptions.attachments = [
+        {
+          filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
+          content: calendarInvite.content,
+          contentType: `text/calendar; method=${method}; charset=UTF-8`,
+          contentDisposition: 'attachment',
+          encoding: 'utf8'
+        }
+      ]
 
       // Add calendar headers for proper Outlook recognition
       mailOptions.headers = {
@@ -225,18 +242,13 @@ export async function POST(request: NextRequest) {
         'X-MS-OLK-CONFTYPE': '0',
         'X-MS-OLK-SENDER': fromEmail,
         'X-MS-OLK-AUTOFORWARD': 'FALSE',
-        'X-MS-OLK-AUTOREPLY': 'FALSE'
+        'X-MS-OLK-AUTOREPLY': 'FALSE',
+        'MIME-Version': '1.0'
       }
 
-      // Add .ics file as attachment for better compatibility
-      mailOptions.attachments = [
-        {
-          filename: calendarEvent.method === 'CANCEL' ? 'cancel.ics' : 'invite.ics',
-          content: calendarInvite.content,
-          contentType: calendarInvite.contentType,
-          contentDisposition: 'attachment' as const
-        }
-      ]
+      // Remove the old html/text properties since we're using alternatives
+      delete mailOptions.html
+      delete mailOptions.text
     }
 
     const info = await transporter.sendMail(mailOptions)

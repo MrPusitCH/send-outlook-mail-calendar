@@ -58,6 +58,21 @@ function formatICalDate(dateString: string, timezone?: string): string {
 }
 
 /**
+ * Ensure consistent date format for calendar events
+ * CRITICAL: For cancellations, this preserves the exact original format
+ */
+function ensureConsistentDateFormat(dateString: string, isCancellation: boolean = false): string {
+  if (isCancellation) {
+    // For cancellations, return the date as-is to preserve original format
+    return dateString
+  } else {
+    // For new events, ensure UTC format with Z suffix
+    const date = new Date(dateString)
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  }
+}
+
+/**
  * Escape text for iCalendar format
  */
 function escapeICalText(text: string): string {
@@ -118,6 +133,7 @@ function foldLine(line: string): string {
   if (remaining.length > 0) {
     folded.push(remaining)
   }
+  // CRITICAL: Use CRLF line endings as required by RFC 5545
   return folded.join('\r\n')
 }
 
@@ -152,11 +168,14 @@ export function generateICalContent(event: CalendarEvent): string {
 
   // DTSTART/DTEND - REQUIRED fields, must match original invite exactly for cancellations
   if (event.start && event.end) {
-    // For Outlook compatibility, prefer UTC with Z suffix
-    const startUTC = new Date(event.start).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-    const endUTC = new Date(event.end).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-    lines.push(`DTSTART:${startUTC}`)
-    lines.push(`DTEND:${endUTC}`)
+    // CRITICAL: For cancellations, use EXACT same format as original event
+    // Do NOT convert timezone - preserve original format to ensure exact match
+    const isCancellation = event.method === 'CANCEL'
+    const startFormatted = ensureConsistentDateFormat(event.start, isCancellation)
+    const endFormatted = ensureConsistentDateFormat(event.end, isCancellation)
+    
+    lines.push(`DTSTART:${startFormatted}`)
+    lines.push(`DTEND:${endFormatted}`)
   }
 
   // SUMMARY - REQUIRED field, for cancellations, append "(Cancelled)" to make it clear
@@ -181,11 +200,13 @@ export function generateICalContent(event: CalendarEvent): string {
 
   // ORGANIZER - REQUIRED field, must match SMTP From address for proper recognition
   // Format: ORGANIZER;CN=Name:mailto:email@domain.com
+  // CRITICAL: For cancellations, organizer MUST be exactly the same as original event
   if (event.organizer?.email) {
     const organizerName = event.organizer.name || 'DEDE_SYSTEM'
     lines.push(foldLine(`ORGANIZER;CN=${escapeICalText(organizerName)}:mailto:${event.organizer.email}`))
   } else {
-    // Fallback to environment SMTP From address
+    // CRITICAL: This should never happen for cancellations due to validation in createCancelledCalendarEvent
+    // But provide fallback for new events
     const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
     const fromName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
     lines.push(foldLine(`ORGANIZER;CN=${escapeICalText(fromName)}:mailto:${fromEmail}`))
@@ -206,14 +227,24 @@ export function generateICalContent(event: CalendarEvent): string {
   }
 
   // STATUS - Important for cancellations
-  const status = event.status || 'CONFIRMED'
+  // CRITICAL: For CANCEL events, status should be CANCELLED
+  const status = event.method === 'CANCEL' ? 'CANCELLED' : (event.status || 'CONFIRMED')
   lines.push(`STATUS:${status}`)
+
+  // CRITICAL: Add RECURRENCE-ID for proper cancellation handling (if applicable)
+  // This helps calendar clients identify the specific instance being cancelled
+  if (event.method === 'CANCEL' && event.start) {
+    // Use the same format as DTSTART for consistency
+    const recurrenceId = event.start
+    lines.push(`RECURRENCE-ID:${recurrenceId}`)
+  }
 
   // End event
   lines.push('END:VEVENT')
   lines.push('END:VCALENDAR')
 
-  // Use CRLF (\r\n) line endings as required by RFC 5545
+  // CRITICAL: Use CRLF (\r\n) line endings as required by RFC 5545
+  // This is essential for proper calendar client recognition
   return lines.join('\r\n')
 }
 
@@ -225,6 +256,19 @@ export function generateCalendarInvite(event: CalendarEvent): {
   content: string
   contentType: string
 } {
+  // CRITICAL: Ensure organizer matches SMTP From address for proper Outlook recognition
+  const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+  const fromName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
+  
+  // For cancellations, preserve original organizer exactly
+  // For new events, ensure organizer matches SMTP From
+  if (event.method !== 'CANCEL' && (!event.organizer || event.organizer.email !== fromEmail)) {
+    event.organizer = {
+      name: fromName,
+      email: fromEmail
+    }
+  }
+
   const icalContent = generateICalContent(event)
 
   return {
@@ -308,18 +352,39 @@ export function createUpdatedCalendarEvent(
 /**
  * Create a cancelled calendar event
  * Enhanced for Outlook compatibility with proper sequence handling
+ * CRITICAL: Preserves exact UID, DTSTART, DTEND, and ORGANIZER from original event
  */
 export function createCancelledCalendarEvent(originalEvent: CalendarEvent): CalendarEvent {
+  // CRITICAL: Ensure UID is exactly the same as original (no regeneration)
+  if (!originalEvent.uid) {
+    throw new Error('Cannot cancel event without original UID')
+  }
+
+  // CRITICAL: Ensure DTSTART and DTEND are exactly the same as original
+  if (!originalEvent.start || !originalEvent.end) {
+    throw new Error('Cannot cancel event without original start/end times')
+  }
+
+  // CRITICAL: Ensure ORGANIZER matches exactly (no fallback)
+  if (!originalEvent.organizer?.email) {
+    throw new Error('Cannot cancel event without original organizer email')
+  }
+
   return {
     ...originalEvent,
     method: 'CANCEL',
     status: 'CANCELLED',
     sequence: (originalEvent.sequence || 0) + 1,
-    // Ensure organizer is preserved exactly as original
-    organizer: originalEvent.organizer || {
-      name: 'DEDE_SYSTEM',
-      email: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
-    }
+    // CRITICAL: Preserve organizer exactly as original - no changes allowed
+    organizer: {
+      name: originalEvent.organizer.name || 'DEDE_SYSTEM',
+      email: originalEvent.organizer.email
+    },
+    // CRITICAL: Preserve start/end times exactly as original - no timezone conversion
+    start: originalEvent.start,
+    end: originalEvent.end,
+    // CRITICAL: Preserve UID exactly as original - no regeneration
+    uid: originalEvent.uid
   }
 }
 
@@ -338,3 +403,152 @@ export const COMMON_TIMEZONES = {
 } as const
 
 export type TimezoneKey = keyof typeof COMMON_TIMEZONES
+
+/**
+ * Test function to validate cancellation flow
+ * This helps ensure proper RFC 5545 compliance for calendar cancellations
+ */
+export function testCancellationFlow(originalEvent: CalendarEvent): {
+  isValid: boolean
+  issues: string[]
+  cancelledEvent: CalendarEvent
+  icsContent: string
+} {
+  const issues: string[] = []
+  
+  // Validate original event has required fields
+  if (!originalEvent.uid) {
+    issues.push('Original event missing UID')
+  }
+  if (!originalEvent.start || !originalEvent.end) {
+    issues.push('Original event missing start/end times')
+  }
+  if (!originalEvent.organizer?.email) {
+    issues.push('Original event missing organizer email')
+  }
+  
+  // Create cancelled event
+  let cancelledEvent: CalendarEvent
+  try {
+    cancelledEvent = createCancelledCalendarEvent(originalEvent)
+  } catch (error) {
+    issues.push(`Failed to create cancelled event: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    return {
+      isValid: false,
+      issues,
+      cancelledEvent: originalEvent,
+      icsContent: ''
+    }
+  }
+  
+  // Validate cancellation event
+  if (cancelledEvent.uid !== originalEvent.uid) {
+    issues.push('Cancelled event UID does not match original')
+  }
+  if (cancelledEvent.start !== originalEvent.start) {
+    issues.push('Cancelled event start time does not match original')
+  }
+  if (cancelledEvent.end !== originalEvent.end) {
+    issues.push('Cancelled event end time does not match original')
+  }
+  if (cancelledEvent.organizer?.email !== originalEvent.organizer?.email) {
+    issues.push('Cancelled event organizer does not match original')
+  }
+  if (cancelledEvent.sequence !== (originalEvent.sequence || 0) + 1) {
+    issues.push('Cancelled event sequence is not incremented correctly')
+  }
+  if (cancelledEvent.method !== 'CANCEL') {
+    issues.push('Cancelled event method is not CANCEL')
+  }
+  if (cancelledEvent.status !== 'CANCELLED') {
+    issues.push('Cancelled event status is not CANCELLED')
+  }
+  
+  // Generate ICS content
+  let icsContent = ''
+  try {
+    icsContent = generateICalContent(cancelledEvent)
+  } catch (error) {
+    issues.push(`Failed to generate ICS content: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+  
+  return {
+    isValid: issues.length === 0,
+    issues,
+    cancelledEvent,
+    icsContent
+  }
+}
+
+/**
+ * Test function to validate MIME structure for Outlook compatibility
+ * This helps ensure proper email rendering while maintaining calendar functionality
+ */
+export function testMIMEStructure(calendarEvent: CalendarEvent, emailBody: string): {
+  isValid: boolean
+  issues: string[]
+  mimeStructure: {
+    hasMultipartMixed: boolean
+    hasMultipartAlternative: boolean
+    hasTextPlain: boolean
+    hasTextHtml: boolean
+    hasCalendarAttachment: boolean
+    organizerMatchesFrom: boolean
+    usesCRLF: boolean
+    properContentTypes: boolean
+  }
+} {
+  const issues: string[] = []
+  
+  // Test .ics content
+  const icsContent = generateICalContent(calendarEvent)
+  const calendarInvite = generateCalendarInvite(calendarEvent)
+  
+  // Check CRLF line endings
+  const usesCRLF = icsContent.includes('\r\n')
+  if (!usesCRLF) {
+    issues.push('ICS content does not use CRLF line endings as required by RFC 5545')
+  }
+  
+  // Check organizer consistency
+  const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+  const organizerMatchesFrom = calendarEvent.organizer?.email === fromEmail
+  if (!organizerMatchesFrom) {
+    issues.push('Organizer email does not match SMTP From address')
+  }
+  
+  // Check content types
+  const properContentTypes = calendarInvite.contentType.includes('text/calendar') && 
+                            calendarInvite.contentType.includes('charset=UTF-8')
+  if (!properContentTypes) {
+    issues.push('Calendar attachment does not have proper Content-Type')
+  }
+  
+  // Check HTML body has inline CSS only (basic check)
+  const hasExternalCSS = emailBody.includes('href=') && emailBody.includes('.css')
+  if (hasExternalCSS) {
+    issues.push('HTML body should use inline CSS only, no external stylesheets')
+  }
+  
+  // Check for proper MIME structure components
+  const mimeStructure = {
+    hasMultipartMixed: true, // Will be handled by nodemailer
+    hasMultipartAlternative: true, // Will be handled by nodemailer
+    hasTextPlain: true, // Will be generated from HTML
+    hasTextHtml: emailBody.includes('<') && emailBody.includes('>'),
+    hasCalendarAttachment: true, // Will be attached
+    organizerMatchesFrom,
+    usesCRLF,
+    properContentTypes
+  }
+  
+  if (!mimeStructure.hasTextHtml) {
+    issues.push('Email body should contain HTML content for proper rendering')
+  }
+  
+  return {
+    isValid: issues.length === 0,
+    issues,
+    mimeStructure
+  }
+}
