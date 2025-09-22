@@ -43,8 +43,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { meetingId, uid, summary, start, end, attendees, reason, sequence, organizer, location, description } = body
 
+    // Helper: RFC5545 basic format checker (YYYYMMDDTHHMMSSZ)
+    const isBasicDateTime = (value: string): boolean => /^(\d{8}T\d{6}Z)$/.test(value)
+
+    // Helper: Convert any date-like string to RFC5545 basic UTC format
+    const toRFC5545BasicUTC = (value: string): string => {
+      const d = new Date(value)
+      if (isNaN(d.getTime())) {
+        throw new Error(`Invalid date for cancellation: ${value}`)
+      }
+      const year = d.getUTCFullYear()
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(d.getUTCDate()).padStart(2, '0')
+      const hours = String(d.getUTCHours()).padStart(2, '0')
+      const minutes = String(d.getUTCMinutes()).padStart(2, '0')
+      const seconds = String(d.getUTCSeconds()).padStart(2, '0')
+      return `${year}${month}${day}T${hours}${minutes}${seconds}Z`
+    }
+
+    // Normalize DTSTART/DTEND to RFC5545 basic format to match REQUEST exactly
+    const normalizedStart = typeof start === 'string' && isBasicDateTime(start) ? start : toRFC5545BasicUTC(String(start))
+    const normalizedEnd = typeof end === 'string' && isBasicDateTime(end) ? end : toRFC5545BasicUTC(String(end))
+
     // Validate required fields for cancellation
-    if (!uid || !summary || !start || !end || !attendees || !Array.isArray(attendees)) {
+    if (!uid || !summary || !normalizedStart || !normalizedEnd || !attendees || !Array.isArray(attendees)) {
       return NextResponse.json({
         success: false,
         error: 'Missing required fields: uid, summary, start, end, attendees'
@@ -62,8 +84,8 @@ export async function POST(request: NextRequest) {
       summary,
       description: description || '',
       location: location || '',
-      start, // CRITICAL: Must be exact same format as original event
-      end,   // CRITICAL: Must be exact same format as original event
+      start: normalizedStart, // CRITICAL: Must be exact same format as original event
+      end: normalizedEnd,   // CRITICAL: Must be exact same format as original event
       organizer: {
         name: organizerName,
         email: organizerEmail // CRITICAL: Must match SMTP From address
