@@ -92,6 +92,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fallback 2: if caller provides exact RFC5545 basic DTSTART/DTEND and organizer, accept and persist
+    if (!stored) {
+      const hasBasicDates = typeof start === 'string' && typeof end === 'string' && isBasicDateTime(start) && isBasicDateTime(end)
+      const orgEmail = (organizer && typeof organizer.email === 'string' && organizer.email) || (process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp')
+      const orgName = (organizer && typeof organizer.name === 'string' && organizer.name) || (process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM')
+      if (hasBasicDates && orgEmail) {
+        const organizerLine = `ORGANIZER;CN=${orgName}:mailto:${orgEmail}`
+        const seqNum = typeof sequence === 'number' ? sequence : 0
+        const meta = { uid: effectiveUid, dtstart: start, dtend: end, sequence: seqNum, organizerLine }
+        saveInviteMeta(meta)
+        stored = meta
+      }
+    }
+
     if (!stored) {
       return NextResponse.json({ success: false, error: `Original invite not found for UID: ${effectiveUid}` }, { status: 404 })
     }

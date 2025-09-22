@@ -219,6 +219,10 @@ export async function POST(request: NextRequest) {
         {
           contentType: 'text/html; charset=UTF-8',
           content: emailBody
+        },
+        {
+          contentType: `text/calendar; method=${method}; charset=UTF-8`,
+          content: calendarInvite.content
         }
       ]
 
