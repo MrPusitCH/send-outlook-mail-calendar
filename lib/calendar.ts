@@ -446,6 +446,24 @@ export const COMMON_TIMEZONES = {
 export type TimezoneKey = keyof typeof COMMON_TIMEZONES
 
 /**
+ * Helper function to validate RFC5545 basic date-time format
+ * Phase 0: Safety setup
+ */
+export function isBasicDateTime(str: string): boolean {
+  // RFC5545 basic format: YYYYMMDDTHHMMSSZ
+  const basicDateTimeRegex = /^\d{8}T\d{6}Z$/
+  return basicDateTimeRegex.test(str)
+}
+
+/**
+ * Helper function to build ICS lines with proper formatting
+ * Phase 0: Safety setup
+ */
+export function buildICSLines(lines: string[]): string {
+  return lines.join('\r\n')
+}
+
+/**
  * Test function to validate cancellation flow
  * This helps ensure proper RFC 5545 compliance for calendar cancellations
  */
