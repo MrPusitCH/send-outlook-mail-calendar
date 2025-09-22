@@ -102,34 +102,34 @@ function escapeICalText(text: string): string {
  * Enhanced for Outlook compatibility
  */
 function formatAttendee(attendee: CalendarEvent['attendees'][0]): string {
-  const parts: string[] = []
+  const paramParts: string[] = []
 
   // CN (Common Name) - required for Outlook
   if (attendee.name) {
-    parts.push(`CN=${escapeICalText(attendee.name)}`)
+    paramParts.push(`CN=${escapeICalText(attendee.name)}`)
   } else {
     // Generate name from email if not provided
     const name = attendee.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    parts.push(`CN=${escapeICalText(name)}`)
+    paramParts.push(`CN=${escapeICalText(name)}`)
   }
 
   // ROLE - required for Outlook
   if (attendee.role) {
-    parts.push(`ROLE=${attendee.role}`)
+    paramParts.push(`ROLE=${attendee.role}`)
   }
 
   // RSVP - set TRUE for both required and optional participants so they can respond
-  parts.push('RSVP=TRUE')
+  paramParts.push('RSVP=TRUE')
 
   // PARTSTAT - for cancellations, keep as NEEDS-ACTION
   if (attendee.status) {
-    parts.push(`PARTSTAT=${attendee.status}`)
+    paramParts.push(`PARTSTAT=${attendee.status}`)
   }
 
-  // Email address
-  parts.push(`mailto:${attendee.email}`)
+  // Email address value must follow a colon after parameters
+  const mailtoValue = `mailto:${attendee.email}`
 
-  return `ATTENDEE;${parts.join(';')}`
+  return `ATTENDEE;${paramParts.join(';')}:${mailtoValue}`
 }
 
 /**
@@ -228,18 +228,11 @@ export function generateICalContent(event: CalendarEvent): string {
       lines.push(`DTSTART:${event.start}`)
       lines.push(`DTEND:${event.end}`)
     } else {
-      // For new events, check if already in proper format
-      if (event.start.includes('T') && event.start.endsWith('Z')) {
-        // Already in proper format
-        lines.push(`DTSTART:${event.start}`)
-        lines.push(`DTEND:${event.end}`)
-      } else {
-        // Convert to proper RFC5545 basic UTC format
-        const startUTC = formatICalDate(event.start)
-        const endUTC = formatICalDate(event.end)
-        lines.push(`DTSTART:${startUTC}`)
-        lines.push(`DTEND:${endUTC}`)
-      }
+      // For new events, enforce RFC5545 basic UTC format (YYYYMMDDTHHMMSSZ)
+      const startUTC = isBasicDateTime(event.start) ? event.start : formatICalDate(event.start)
+      const endUTC = isBasicDateTime(event.end) ? event.end : formatICalDate(event.end)
+      lines.push(`DTSTART:${startUTC}`)
+      lines.push(`DTEND:${endUTC}`)
     }
   }
 
