@@ -903,6 +903,7 @@ Tel: 0-3846-9700 #7650`,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           meetingId: meeting.id,
+          originalUid: meeting.uid,
           uid: meeting.uid,
           summary: meeting.summary,
           start: meeting.start,
