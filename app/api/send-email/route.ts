@@ -206,21 +206,54 @@ export async function POST(request: NextRequest) {
       
       // Persist REQUEST metadata to store for future CANCEL
       if ((calendarEvent.method || 'REQUEST') === 'REQUEST' && calendarEvent.uid && calendarEvent.organizer?.email) {
+        // Normalize content and handle line folding
         const contentForPersist = calendarInvite.content.replace(/\r?\n/g, '\r\n')
-        const get = (k: string) => (contentForPersist.match(new RegExp(`^${k}:(.*)$`, 'm'))?.[1] || '').trim()
-        const organizerLine = (contentForPersist.match(/^ORGANIZER[^\r\n]*$/m)?.[0] || '').trim()
+
+        // Enhanced parser that handles line folding (continuation lines starting with space)
+        const unfoldedContent = contentForPersist.replace(/\r\n\s+/g, '')
+
+        const get = (k: string) => {
+          const match = unfoldedContent.match(new RegExp(`^${k}:(.*)$`, 'm'))
+          return match ? match[1].trim() : ''
+        }
+
+        const getLine = (k: string) => {
+          const match = unfoldedContent.match(new RegExp(`^${k}[^\r\n]*$`, 'm'))
+          return match ? match[0].trim() : ''
+        }
+
         const meta = {
           uid: get('UID') || calendarEvent.uid,
           dtstart: get('DTSTART'),
           dtend: get('DTEND'),
           sequence: parseInt(get('SEQUENCE') || '0', 10),
-          organizerLine
+          organizerLine: getLine('ORGANIZER')
         }
-        if (meta.uid && meta.dtstart && meta.dtend && meta.organizerLine) {
+
+        // Enhanced validation - only require essential fields for cancellation
+        if (meta.uid && meta.dtstart && meta.dtend) {
+          // If organizerLine is missing, construct it from calendarEvent
+          if (!meta.organizerLine && calendarEvent.organizer) {
+            const orgName = calendarEvent.organizer.name || 'DEDE_SYSTEM'
+            const orgEmail = calendarEvent.organizer.email
+            meta.organizerLine = `ORGANIZER;CN=${orgName}:mailto:${orgEmail}`
+          }
+
           saveInviteMeta(meta)
-          console.log(`[STORE] Saved REQUEST meta for UID: ${meta.uid}`)
+          console.log(`[STORE] Saved REQUEST meta for UID: ${meta.uid}`, {
+            dtstart: meta.dtstart,
+            dtend: meta.dtend,
+            sequence: meta.sequence,
+            hasOrganizerLine: !!meta.organizerLine
+          })
         } else {
-          console.warn(`[STORE] Failed to save REQUEST meta - missing fields:`, meta)
+          console.warn(`[STORE] Failed to save REQUEST meta - missing essential fields:`, {
+            uid: meta.uid,
+            dtstart: meta.dtstart,
+            dtend: meta.dtend,
+            organizerLine: meta.organizerLine,
+            icsContentPreview: contentForPersist.substring(0, 500)
+          })
         }
       }
 
