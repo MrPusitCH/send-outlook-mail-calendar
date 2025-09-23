@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Lookup stored REQUEST meta
     let stored = getInviteMeta(effectiveUid)
+    console.log(`[CANCEL] Looking up UID: ${effectiveUid}, found:`, !!stored)
 
     // Optional fallback: parse provided EML to extract ICS
     if (!stored && typeof fallbackEmlPath === 'string') {

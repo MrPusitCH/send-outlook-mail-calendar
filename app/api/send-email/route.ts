@@ -203,6 +203,26 @@ export async function POST(request: NextRequest) {
       // Generate .ics calendar invite using the enhanced calendar library
       const calendarInvite = generateCalendarInvite(calendarEvent)
       const method = calendarEvent.method === 'CANCEL' ? 'CANCEL' : 'REQUEST'
+      
+      // Persist REQUEST metadata to store for future CANCEL
+      if ((calendarEvent.method || 'REQUEST') === 'REQUEST' && calendarEvent.uid && calendarEvent.organizer?.email) {
+        const contentForPersist = calendarInvite.content.replace(/\r?\n/g, '\r\n')
+        const get = (k: string) => (contentForPersist.match(new RegExp(`^${k}:(.*)$`, 'm'))?.[1] || '').trim()
+        const organizerLine = (contentForPersist.match(/^ORGANIZER[^\r\n]*$/m)?.[0] || '').trim()
+        const meta = {
+          uid: get('UID') || calendarEvent.uid,
+          dtstart: get('DTSTART'),
+          dtend: get('DTEND'),
+          sequence: parseInt(get('SEQUENCE') || '0', 10),
+          organizerLine
+        }
+        if (meta.uid && meta.dtstart && meta.dtend && meta.organizerLine) {
+          saveInviteMeta(meta)
+          console.log(`[STORE] Saved REQUEST meta for UID: ${meta.uid}`)
+        } else {
+          console.warn(`[STORE] Failed to save REQUEST meta - missing fields:`, meta)
+        }
+      }
 
       // CRITICAL: Create proper MIME structure for Outlook compatibility
       // Structure: multipart/mixed -> multipart/alternative (text/plain + text/html) + text/calendar attachment
@@ -250,23 +270,6 @@ export async function POST(request: NextRequest) {
         'X-MS-OLK-AUTOFORWARD': 'FALSE',
         'X-MS-OLK-AUTOREPLY': 'FALSE',
         'MIME-Version': '1.0'
-      }
-
-      // Persist REQUEST metadata to store for future CANCEL
-      if ((calendarEvent.method || 'REQUEST') === 'REQUEST' && calendarEvent.uid && calendarEvent.organizer?.email) {
-        const contentForPersist = calendarInvite.content.replace(/\r?\n/g, '\r\n')
-        const get = (k: string) => (contentForPersist.match(new RegExp(`^${k}:(.*)$`, 'm'))?.[1] || '').trim()
-        const organizerLine = (contentForPersist.match(/^ORGANIZER[^\r\n]*$/m)?.[0] || '').trim()
-        const meta = {
-          uid: get('UID') || calendarEvent.uid,
-          dtstart: get('DTSTART'),
-          dtend: get('DTEND'),
-          sequence: parseInt(get('SEQUENCE') || '0', 10),
-          organizerLine
-        }
-        if (meta.uid && meta.dtstart && meta.dtend && meta.organizerLine) {
-          saveInviteMeta(meta)
-        }
       }
 
       // Remove the old html/text properties since we're using alternatives
@@ -347,3 +350,4 @@ export async function GET() {
     )
   }
 }
+
