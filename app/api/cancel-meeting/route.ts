@@ -239,3 +239,138 @@ export async function POST(request: NextRequest) {
     }
   }
 }
+
+// DELETE /api/cancel-meeting?originalUid=...&uid=...&summary=...&attendees=a@x,b@y&start=YYYYMMDDTHHMMSSZ&end=YYYYMMDDTHHMMSSZ&organizerEmail=...&organizerName=...&fallbackEmlPath=...
+export async function DELETE(request: NextRequest) {
+  let transporter: nodemailer.Transporter | null = null
+  try {
+    const url = new URL(request.url)
+    const q = url.searchParams
+    const originalUid = q.get('originalUid') || undefined
+    const uid = q.get('uid') || undefined
+    const summary = q.get('summary') || ''
+    const attendeesStr = q.get('attendees') || ''
+    const attendees = attendeesStr.split(',').map(s => s.trim()).filter(Boolean)
+    const start = q.get('start') || undefined
+    const end = q.get('end') || undefined
+    const organizerEmailQ = q.get('organizerEmail') || undefined
+    const organizerNameQ = q.get('organizerName') || undefined
+    const fallbackEmlPath = q.get('fallbackEmlPath') || undefined
+    const reason = q.get('reason') || undefined
+
+    // Helper: RFC5545 basic format checker (YYYYMMDDTHHMMSSZ)
+    const isBasicDateTime = (value: string): boolean => /^(\d{8}T\d{6}Z)$/.test(value)
+
+    // Require UID
+    const effectiveUid = originalUid || uid
+    if (!effectiveUid) {
+      return NextResponse.json({ success: false, error: 'originalUid (or uid) is required for cancellation' }, { status: 400 })
+    }
+
+    // Lookup stored meta
+    let stored = getInviteMeta(effectiveUid)
+
+    // Optional fallback: parse EML
+    if (!stored && typeof fallbackEmlPath === 'string') {
+      try {
+        const fs = await import('fs')
+        const raw = fs.readFileSync(fallbackEmlPath, 'utf8')
+        const match = raw.match(/Content-Type: text\/calendar[\s\S]*?\r\n\r\n([\s\S]*?)\r\n--/i)
+        if (match) {
+          const icsText = match[1]
+          const meta = extractMetaFromICS(icsText)
+          if (meta) {
+            saveInviteMeta(meta)
+            stored = meta
+          }
+        }
+      } catch (e) {
+        console.warn('[CANCEL_FALLBACK_DELETE] Failed to parse EML', e)
+      }
+    }
+
+    // Fallback 2: accept provided basic DTSTART/DTEND + organizer
+    if (!stored) {
+      const hasBasicDates = !!start && !!end && isBasicDateTime(start) && isBasicDateTime(end)
+      const orgEmail = organizerEmailQ || (process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp')
+      const orgName = organizerNameQ || (process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM')
+      if (hasBasicDates && orgEmail) {
+        const organizerLine = `ORGANIZER;CN=${orgName}:mailto:${orgEmail}`
+        const meta = { uid: effectiveUid, dtstart: start!, dtend: end!, sequence: 0, organizerLine }
+        saveInviteMeta(meta)
+        stored = meta
+      }
+    }
+
+    if (!stored) {
+      return NextResponse.json({ success: false, error: `Original invite not found for UID: ${effectiveUid}` }, { status: 404 })
+    }
+
+    if (!summary || attendees.length === 0) {
+      return NextResponse.json({ success: false, error: 'Missing required fields: summary, attendees' }, { status: 400 })
+    }
+
+    const organizerEmail = organizerEmailQ || process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
+    const organizerName = organizerNameQ || process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
+
+    const originalEvent = {
+      uid: stored.uid,
+      summary,
+      description: '',
+      location: '',
+      start: stored.dtstart,
+      end: stored.dtend,
+      organizer: { name: organizerName, email: organizerEmail },
+      attendees: attendees.map((email: string) => ({ email, role: 'REQ-PARTICIPANT' as const, status: 'NEEDS-ACTION' as const })),
+      sequence: stored.sequence || 0,
+      method: 'REQUEST' as const,
+      status: 'CONFIRMED' as const
+    }
+
+    const cancelledEvent = createCancelledCalendarEvent(originalEvent)
+    const emailBody = generateCancellationEmailHTML(cancelledEvent, reason)
+    const calendarInvite = generateCalendarInvite(cancelledEvent)
+
+    transporter = createTransporter()
+    await transporter.verify()
+
+    const textBody = emailBody.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+
+    const mailOptions = {
+      from: `${organizerName} <${organizerEmail}>`,
+      to: attendees.join(', '),
+      subject: `CANCELLED: ${summary}`,
+      alternatives: [
+        { contentType: 'text/plain; charset=UTF-8', content: textBody },
+        { contentType: 'text/html; charset=UTF-8', content: emailBody },
+        { contentType: 'text/calendar; method=CANCEL; charset=UTF-8', content: calendarInvite.content }
+      ],
+      headers: {
+        'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
+        'X-MICROSOFT-CDO-BUSYSTATUS': 'FREE',
+        'X-MICROSOFT-CDO-IMPORTANCE': '1',
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE',
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MS-HAS-ATTACH': 'TRUE',
+        'X-MS-OLK-CONFTYPE': '0',
+        'X-MS-OLK-SENDER': organizerEmail,
+        'X-MS-OLK-AUTOFORWARD': 'FALSE',
+        'X-MS-OLK-AUTOREPLY': 'FALSE',
+        'MIME-Version': '1.0'
+      },
+      attachments: [
+        { filename: 'cancel.ics', content: calendarInvite.content, contentType: 'text/calendar; method=CANCEL; charset=UTF-8', contentDisposition: 'attachment' as const, encoding: 'utf8' }
+      ]
+    }
+
+    const info = await transporter.sendMail(mailOptions)
+    return NextResponse.json({ success: true, message: 'Cancellation email sent successfully', messageId: info.messageId || 'unknown' })
+  } catch (error) {
+    console.error('Error sending cancellation email (DELETE):', error)
+    return NextResponse.json({ success: false, error: 'Failed to send cancellation email', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
+  } finally {
+    if (transporter) {
+      transporter.close()
+    }
+  }
+}
