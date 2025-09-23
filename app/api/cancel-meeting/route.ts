@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { generateCalendarInvite, createCancelledCalendarEvent } from '@/lib/calendar'
 import { generateCancellationEmailHTML } from '@/lib/templates'
-import { getInviteMeta, extractMetaFromICS, saveInviteMeta } from '@/lib/calendar-store'
+import { getInviteMeta, extractMetaFromICS, saveInviteMeta, deleteInviteMeta } from '@/lib/calendar-store'
 import { saveEml } from '@/lib/email-debug'
 
 // Email configuration
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
     // Log cancellation details for traceability
     console.log(`[CANCELLATION] UID: ${uid}, SEQUENCE: ${cancelledEvent.sequence}, Recipients: ${attendees.join(', ')}, Status: SENT, MessageID: ${info.messageId || 'unknown'}, Organizer: ${organizerEmail}, Method: CANCEL`)
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Cancellation email sent successfully',
       messageId: info.messageId || 'unknown',
@@ -226,6 +226,18 @@ export async function POST(request: NextRequest) {
         sentAt: new Date().toISOString()
       }
     })
+
+    // After sending cancellation, remove stored REQUEST meta
+    try {
+      const removed = deleteInviteMeta(cancelledEvent.uid)
+      if (!removed) {
+        console.warn(`[CANCEL] No stored meta to delete for UID: ${cancelledEvent.uid}`)
+      }
+    } catch (e) {
+      console.warn('[CANCEL] Failed to delete stored meta after cancellation', e)
+    }
+
+    return response
 
   } catch (error) {
     console.error('Error sending cancellation email:', error)
@@ -365,7 +377,20 @@ export async function DELETE(request: NextRequest) {
     }
 
     const info = await transporter.sendMail(mailOptions)
-    return NextResponse.json({ success: true, message: 'Cancellation email sent successfully', messageId: info.messageId || 'unknown' })
+
+    const res = NextResponse.json({ success: true, message: 'Cancellation email sent successfully', messageId: info.messageId || 'unknown' })
+
+    // After sending cancellation, remove stored REQUEST meta
+    try {
+      const removed = deleteInviteMeta(cancelledEvent.uid)
+      if (!removed) {
+        console.warn(`[CANCEL_DELETE] No stored meta to delete for UID: ${cancelledEvent.uid}`)
+      }
+    } catch (e) {
+      console.warn('[CANCEL_DELETE] Failed to delete stored meta after cancellation', e)
+    }
+
+    return res
   } catch (error) {
     console.error('Error sending cancellation email (DELETE):', error)
     return NextResponse.json({ success: false, error: 'Failed to send cancellation email', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })

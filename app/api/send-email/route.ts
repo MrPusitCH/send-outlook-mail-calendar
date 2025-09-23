@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { sendEmailInputSchema, validateEmailDomain, getAllowedEmailDomainSuffix, cleanEmailListNoValidation } from '@/lib/validators'
 import { createCalendarEvent, generateCalendarInvite } from '@/lib/calendar'
-import { saveInviteMeta } from '@/lib/calendar-store'
+import { saveInviteMeta, saveInviteIcs } from '@/lib/calendar-store'
 import { saveEml } from '@/lib/email-debug'
 // import { generateCalendarInvitationEmail, CalendarInvitationParams } from '@/lib/calendar-invitation-generator'
 // DISABLED - Now using beautiful HTML templates instead
@@ -240,6 +240,12 @@ export async function POST(request: NextRequest) {
           }
 
           saveInviteMeta(meta)
+          // Also persist raw ICS content under the hashed UID for troubleshooting/cancel
+          try {
+            saveInviteIcs(meta.uid, calendarInvite.content)
+          } catch (e) {
+            console.warn('[STORE] Failed to persist ICS content', e)
+          }
           console.log(`[STORE] Saved REQUEST meta for UID: ${meta.uid}`, {
             dtstart: meta.dtstart,
             dtend: meta.dtend,

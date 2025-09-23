@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 
 export type StoredInviteMeta = {
   uid: string
@@ -7,6 +8,8 @@ export type StoredInviteMeta = {
   dtend: string
   sequence: number
   organizerLine: string
+  // Optional: persist original ICS content for troubleshooting/auditing
+  ics?: string
 }
 
 const STORE_DIR = path.resolve(process.cwd(), 'data')
@@ -32,6 +35,10 @@ export function writeStore(data: Record<string, StoredInviteMeta>): void {
   fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2), 'utf8')
 }
 
+function hashUid(uid: string): string {
+  return crypto.createHash('sha256').update(uid).digest('hex')
+}
+
 export function saveInviteMeta(meta: StoredInviteMeta): void {
   if (!meta.uid) {
     console.error('[SAVE_META] Cannot save meta without UID:', meta)
@@ -39,11 +46,12 @@ export function saveInviteMeta(meta: StoredInviteMeta): void {
   }
 
   const store = readStore()
-  store[meta.uid] = meta
+  const key = hashUid(meta.uid)
+  store[key] = meta
 
   try {
     writeStore(store)
-    console.log(`[SAVE_META] Successfully saved meta for UID: ${meta.uid}`, {
+    console.log(`[SAVE_META] Successfully saved meta for UID (hashed key): ${meta.uid}`, {
       dtstart: meta.dtstart,
       dtend: meta.dtend,
       sequence: meta.sequence,
@@ -57,7 +65,8 @@ export function saveInviteMeta(meta: StoredInviteMeta): void {
 
 export function getInviteMeta(uid: string): StoredInviteMeta | undefined {
   const store = readStore()
-  const meta = store[uid]
+  const key = hashUid(uid)
+  const meta = store[key]
 
   if (meta) {
     console.log(`[GET_META] Found meta for UID: ${uid}`, {
@@ -67,7 +76,7 @@ export function getInviteMeta(uid: string): StoredInviteMeta | undefined {
       hasOrganizerLine: !!meta.organizerLine
     })
   } else {
-    console.warn(`[GET_META] No meta found for UID: ${uid}. Available UIDs:`, Object.keys(store))
+    console.warn(`[GET_META] No meta found for UID: ${uid}. Available hashed keys:`, Object.keys(store))
   }
 
   return meta
@@ -110,6 +119,36 @@ export function extractMetaFromICS(icsContent: string): StoredInviteMeta | null 
     sequence,
     organizerLine: organizerLine || '' // Allow empty organizer line, will be reconstructed if needed
   }
+}
+
+export function saveInviteIcs(uid: string, icsContent: string): void {
+  if (!uid) return
+  const store = readStore()
+  const key = hashUid(uid)
+  const existing = store[key]
+  if (existing) {
+    existing.ics = icsContent
+    store[key] = existing
+    writeStore(store)
+  } else {
+    // If meta wasn't saved yet, save minimal record with ICS
+    store[key] = { uid, dtstart: '', dtend: '', sequence: 0, organizerLine: '', ics: icsContent }
+    writeStore(store)
+  }
+}
+
+export function deleteInviteMeta(uid: string): boolean {
+  if (!uid) return false
+  const store = readStore()
+  const key = hashUid(uid)
+  if (store[key]) {
+    delete store[key]
+    writeStore(store)
+    console.log(`[DELETE_META] Removed stored invite for UID: ${uid}`)
+    return true
+  }
+  console.warn(`[DELETE_META] No stored invite found for UID: ${uid}`)
+  return false
 }
 
 
